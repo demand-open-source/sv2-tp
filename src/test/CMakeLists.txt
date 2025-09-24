@@ -25,9 +25,21 @@ PRIVATE
   sv2_noise_tests.cpp
   sv2_transport_tests.cpp
   sv2_messages_tests.cpp
+  sv2_mock_mining.cpp
+  sv2_tp_tester.cpp
   sv2_template_provider_tests.cpp
 )
 target_link_libraries(test_sv2 bitcoin_sv2 bitcoin_ipc)
+
+# Ensure Cap'n Proto generated headers (e.g. src/ipc/capnp/init.capnp.h) are
+# generated before compiling tests that include them directly.
+if(TARGET bitcoin_ipc_headers)
+  add_dependencies(test_sv2 bitcoin_ipc_headers)
+endif()
+add_dependencies(test_sv2 bitcoin_ipc)
+
+# Allow direct includes of generated headers like <src/ipc/...>
+target_include_directories(test_sv2 PRIVATE ${CMAKE_BINARY_DIR})
 
 if(TARGET Libmultiprocess::multiprocess)
   # test_sv2 directly includes generated IPC headers (init.capnp.h) which in turn

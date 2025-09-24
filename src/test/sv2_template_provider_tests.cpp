@@ -1,233 +1,35 @@
 #include <addresstype.h>
 #include <boost/test/unit_test.hpp>
-#include <interfaces/init.h>
-#include <interfaces/ipc.h>
 #include <interfaces/mining.h>
-#include <ipc/capnp/init.capnp.h>
-#include <ipc/capnp/init.capnp.proxy.h>
-#include <node/miner.h>
-#include <node/transaction.h>
-#include <mp/proxy-io.h>
+#include <interfaces/init.h>
 #include <sv2/messages.h>
-#include <sv2/template_provider.h>
 #include <test/util/net.h>
 #include <test/util/setup_common.h>
-#include <test/util/transaction_utils.h>
 #include <util/sock.h>
 #include <util/strencodings.h>
+// Synchronization primitives (Mutex/LOCK)
+#include <sync.h>
+// Additional headers for mocks and scripts
+#include <script/script.h>
+
+// Test harness and mocks
+#include "sv2_tp_tester.h"
+#include "sv2_mock_mining.h"
 
 #include <future>
 #include <memory>
 #include <thread>
+
+// TPTester handles IPC glue internally; no need to include IPC headers here
 
 // For verbose debugging use:
 // build/src/test/test_sv2 --run_test=sv2_template_provider_tests --log_level=all -- -debug=sv2 -loglevel=sv2:trace -printtoconsole=1 | grep -v disabled
 
 BOOST_FIXTURE_TEST_SUITE(sv2_template_provider_tests, TestChain100Setup)
 
-static constexpr size_t SV2_NEW_TEMPLATE_MESSAGE_SIZE{91};
-
-/**
- * A test implementation of the Init interface that provides a Mining
- * interface via the node context passed to its constructor.
- */
-class TestInitImpl : public interfaces::Init {
-public:
-    TestInitImpl(node::NodeContext& node) : m_node(node) {}
-    std::unique_ptr<interfaces::Mining> makeMining() override { return interfaces::MakeMining(m_node); }
-private:
-    node::NodeContext& m_node;
-};
-
-/**
- * A class to set up an IPC server and client for testing.
- * The EventLoop runs in a separate thread.
- */
-class IPCTestSetup {
-private:
-    std::unique_ptr<mp::Connection> m_server_connection;
-    std::unique_ptr<mp::Connection> m_client_connection;
-    std::promise<std::unique_ptr<ipc::capnp::messages::Init::Client>> m_client;
-    std::thread m_thread;
-
-public:
-    std::unique_ptr<interfaces::Init> m_init;
-
-    IPCTestSetup(node::NodeContext& node)
-        : m_thread([&] {
-            mp::EventLoop loop("test", [](bool raise, const std::string& log) {
-                std::cout << "LOG" << raise << ": " << log << "\n";
-                if (raise) throw std::runtime_error(log);
-            });
-            auto pipe{loop.m_io_context.provider->newTwoWayPipe()};
-
-            m_server_connection =
-            std::make_unique<mp::Connection>(loop, kj::mv(pipe.ends[0]), [&](mp::Connection& connection) {
-                auto server_proxy = kj::heap<mp::ProxyServer<ipc::capnp::messages::Init>>(
-                    std::make_shared<TestInitImpl>(node), connection
-                );
-                return capnp::Capability::Client(kj::mv(server_proxy));
-            });
-            m_server_connection->onDisconnect([&] {
-                m_server_connection.reset();
-            });
-            m_client_connection = std::make_unique<mp::Connection>(loop, kj::mv(pipe.ends[1]));
-            m_client_connection->onDisconnect([&] {
-                m_client_connection.reset();
-            });
-            m_client.set_value(std::make_unique<ipc::capnp::messages::Init::Client>(
-                m_client_connection->m_rpc_system->bootstrap(mp::ServerVatId().vat_id).castAs<ipc::capnp::messages::Init>()));
-
-            loop.loop();
-        })
-    {
-        auto client = m_client.get_future().get();
-        // Create ProxyClient after EventLoop starts to ensure the initialization
-        // "construct" request can be properly processed by the server.
-        m_init = std::make_unique<mp::ProxyClient<ipc::capnp::messages::Init>>(
-            std::move(*client), m_client_connection.get(), /* destroy_connection= */ true
-        );
-        // Release ownership of connection. ProxyClient manage its lifetime
-        // because destroy_connection is set to true.
-        m_client_connection.release();
-    }
-
-
-    ~IPCTestSetup()
-    {
-        // Destroy the Init client.
-        // The EventLoop will only stop after all
-        // clients are destroyed.
-        m_init.reset();
-        m_thread.join();
-    }
-};
-
-/**
-  * A class for testing the Template Provider. Each TPTester encapsulates a
-  * Sv2TemplateProvider (the one being tested) as well as a Sv2Cipher
-  * to act as the other side.
-  */
-class TPTester {
-private:
-    std::unique_ptr<Sv2Transport> m_peer_transport; //!< Transport for peer
-    // Sockets that will be returned by the TP listening socket Accept() method.
-    std::shared_ptr<DynSock::Queue> m_tp_accepted_sockets{std::make_shared<DynSock::Queue>()};
-    std::shared_ptr<DynSock::Pipes> m_current_client_pipes;
-
-public:
-    std::unique_ptr<Sv2TemplateProvider> m_tp; //!< Sv2TemplateProvider being tested
-    Sv2TemplateProviderOptions m_tp_options{.is_test = true}; //! Options passed to the TP
-
-    TPTester(interfaces::Mining& mining)
-    {
-        m_tp = std::make_unique<Sv2TemplateProvider>(mining);
-
-        CreateSock = [this](int, int, int) -> std::unique_ptr<Sock> {
-            // This will be the bind/listen socket from m_tp. It will
-            // create other sockets via its Accept() method.
-            return std::make_unique<DynSock>(std::make_shared<DynSock::Pipes>(), m_tp_accepted_sockets);
-        };
-
-        BOOST_REQUIRE(m_tp->Start(m_tp_options));
-    }
-
-    void SendPeerBytes()
-    {
-        const auto& [data, more, _m_message_type] = m_peer_transport->GetBytesToSend(/*have_next_message=*/false);
-        BOOST_REQUIRE(data.size() > 0);
-
-        // Schedule data to be returned by the next Recv() call from
-        // Sv2Connman on the socket it has accepted.
-        m_current_client_pipes->recv.PushBytes(data.data(), data.size());
-        m_peer_transport->MarkBytesSent(data.size());
-    }
-
-    // Have the peer receive and process bytes:
-    size_t PeerReceiveBytes()
-    {
-        uint8_t buf[0x10000];
-        // Get the data that has been written to the accepted socket with Send() by TP.
-        // Wait until the bytes appear in the "send" pipe.
-        ssize_t n;
-        for (;;) {
-            n = m_current_client_pipes->send.GetBytes(buf, sizeof(buf), 0);
-            if (n != -1 || errno != EAGAIN) {
-                break;
-            }
-            UninterruptibleSleep(50ms);
-        }
-
-        // Inform client's transport that some bytes have been received (sent by TP).
-        if (n > 0) {
-            std::span<const uint8_t> s(buf, n);
-            BOOST_REQUIRE(m_peer_transport->ReceivedBytes(s));
-        }
-
-        return n;
-    }
-
-    /* Create a new client and perform handshake */
-    void handshake()
-    {
-        m_peer_transport.reset();
-
-        auto peer_static_key{GenerateRandomKey()};
-        m_peer_transport = std::make_unique<Sv2Transport>(std::move(peer_static_key), m_tp->m_authority_pubkey);
-
-        // Have Sv2Connman's listen socket's Accept() simulate a newly arrived connection.
-        m_current_client_pipes = std::make_shared<DynSock::Pipes>();
-        m_tp_accepted_sockets->Push(
-            std::make_unique<DynSock>(m_current_client_pipes, std::make_shared<DynSock::Queue>()));
-
-        // Flush transport for handshake part 1
-        SendPeerBytes();
-
-        // Read handshake part 2 from transport
-        BOOST_REQUIRE_EQUAL(PeerReceiveBytes(), Sv2HandshakeState::HANDSHAKE_STEP2_SIZE);
-    }
-
-    void receiveMessage(Sv2NetMsg& msg)
-    {
-        // Client encrypts message and puts it on the transport:
-        CSerializedNetMsg net_msg{std::move(msg)};
-        BOOST_REQUIRE(m_peer_transport->SetMessageToSend(net_msg));
-        SendPeerBytes();
-    }
-
-    Sv2NetMsg SetupConnectionMsg()
-    {
-        std::vector<uint8_t> bytes{
-            0x02,                                                 // protocol
-            0x02, 0x00,                                           // min_version
-            0x02, 0x00,                                           // max_version
-            0x01, 0x00, 0x00, 0x00,                               // flags
-            0x07, 0x30, 0x2e, 0x30, 0x2e, 0x30, 0x2e, 0x30,       // endpoint_host
-            0x61, 0x21,                                           // endpoint_port
-            0x07, 0x42, 0x69, 0x74, 0x6d, 0x61, 0x69, 0x6e,       // vendor
-            0x08, 0x53, 0x39, 0x69, 0x20, 0x31, 0x33, 0x2e, 0x35, // hardware_version
-            0x1c, 0x62, 0x72, 0x61, 0x69, 0x69, 0x6e, 0x73, 0x2d, 0x6f, 0x73, 0x2d, 0x32, 0x30,
-            0x31, 0x38, 0x2d, 0x30, 0x39, 0x2d, 0x32, 0x32, 0x2d, 0x31, 0x2d, 0x68, 0x61, 0x73,
-            0x68, // firmware
-            0x10, 0x73, 0x6f, 0x6d, 0x65, 0x2d, 0x64, 0x65, 0x76, 0x69, 0x63, 0x65, 0x2d, 0x75,
-            0x75, 0x69, 0x64, // device_id
-        };
-
-        return node::Sv2NetMsg{node::Sv2MsgType::SETUP_CONNECTION, std::move(bytes)};
-    }
-
-    size_t GetBlockTemplateCount()
-    {
-        LOCK(m_tp->m_tp_mutex);
-        return m_tp->GetBlockTemplates().size();
-    }
-};
-
 BOOST_AUTO_TEST_CASE(client_tests)
 {
-    IPCTestSetup ipc_test_setup{m_node};
-    auto mining{ipc_test_setup.m_init->makeMining()};
-    TPTester tester{*mining};
+    TPTester tester{};
 
     tester.handshake();
 
@@ -253,7 +55,28 @@ BOOST_AUTO_TEST_CASE(client_tests)
     node::Sv2NetMsg msg{node::Sv2MsgType::COINBASE_OUTPUT_CONSTRAINTS, std::move(coinbase_output_constraint_bytes)};
     tester.receiveMessage(msg);
     BOOST_TEST_MESSAGE("The reply should be NewTemplate and SetNewPrevHash");
-    BOOST_REQUIRE_EQUAL(tester.PeerReceiveBytes(), 2 * SV2_HEADER_ENCRYPTED_SIZE + SV2_NEW_TEMPLATE_MESSAGE_SIZE + 80 + 2 * Poly1305::TAGLEN);
+    // Payload sizes for fixed-layout SV2 messages used in this test
+    constexpr size_t SV2_SET_NEW_PREV_HASH_MESSAGE_SIZE = 8 + 32 + 4 + 4 + 32; // = 80
+    constexpr size_t SV2_NEW_TEMPLATE_MESSAGE_SIZE =
+        8 +                 // template_id
+        1 +                 // future_template
+        4 +                 // version
+        4 +                 // coinbase_tx_version
+        1 +                 // coinbase_prefix (CompactSize(0))
+        4 +                 // coinbase_tx_input_sequence
+        8 +                 // coinbase_tx_value_remaining
+        4 +                 // coinbase_tx_outputs_count (0)
+        2 +                 // B0_64K length for outputs array (0)
+        4 +                 // coinbase_tx_locktime
+        1;                  // merkle_path count (CompactSize(0))
+
+    // Two messages back-to-back: headers + payloads + 2 payload tags
+    size_t bytes_first = tester.PeerReceiveBytes();
+    BOOST_REQUIRE_EQUAL(bytes_first,
+        2 * SV2_HEADER_ENCRYPTED_SIZE +
+        SV2_NEW_TEMPLATE_MESSAGE_SIZE +
+        SV2_SET_NEW_PREV_HASH_MESSAGE_SIZE +
+        2 * Poly1305::TAGLEN);
 
     // There should now be one template
     BOOST_REQUIRE_EQUAL(tester.GetBlockTemplateCount(), 1);
@@ -263,28 +86,9 @@ BOOST_AUTO_TEST_CASE(client_tests)
     SetMockTime(GetMockTime() + std::chrono::seconds{10});
     BOOST_REQUIRE_EQUAL(tester.GetBlockTemplateCount(), 1);
 
-    // Create a transaction with a large fee
-    size_t tx_size;
-    CKey key = GenerateRandomKey();
-    CScript locking_script = GetScriptForDestination(PKHash(key.GetPubKey()));
-    // Don't hold on to the transaction
-    {
-        LOCK(cs_main);
-        BOOST_REQUIRE_EQUAL(m_node.mempool->size(), 0);
-
-        auto mtx = CreateValidMempoolTransaction(/*input_transaction=*/m_coinbase_txns[0], /*input_vout=*/0,
-                                                        /*input_height=*/0, /*input_signing_key=*/coinbaseKey,
-                                                        /*output_destination=*/locking_script,
-                                                        /*output_amount=*/CAmount(49 * COIN), /*submit=*/true);
-        CTransactionRef tx = MakeTransactionRef(mtx);
-
-        // Get serialized transaction size
-        DataStream ss;
-        ss << TX_WITH_WITNESS(tx);
-        tx_size = ss.size();
-
-        BOOST_REQUIRE_EQUAL(m_node.mempool->size(), 1);
-    }
+    // Simulate a fee increase by having the mock mining return a template with a tx
+    std::vector<CTransactionRef> high_fee_txs{MakeDummyTx()};
+    tester.m_mining_control->TriggerFeeIncrease(high_fee_txs);
 
     // Move mock time
     SetMockTime(GetMockTime() + std::chrono::seconds{tester.m_tp_options.fee_check_interval});
@@ -292,11 +96,11 @@ BOOST_AUTO_TEST_CASE(client_tests)
     // Briefly wait for block creation
     UninterruptibleSleep(std::chrono::milliseconds{200});
 
-    // Expect our peer to receive a NewTemplate message
-    // This time it should contain the 32 byte prevhash (unchanged)
-    constexpr size_t expected_len = SV2_HEADER_ENCRYPTED_SIZE + SV2_NEW_TEMPLATE_MESSAGE_SIZE + 32 + Poly1305::TAGLEN;
-    BOOST_TEST_MESSAGE("Receive NewTemplate");
-    BOOST_REQUIRE_EQUAL(tester.PeerReceiveBytes(), expected_len);
+    // Expect our peer to receive a NewTemplate message (prevhash unchanged)
+    BOOST_TEST_MESSAGE("Receive NewTemplate (fee increase)");
+    // One NewTemplate follows: header + payload + payload tag
+    size_t bytes_fee_nt = tester.PeerReceiveBytes();
+    BOOST_REQUIRE_EQUAL(bytes_fee_nt, SV2_HEADER_ENCRYPTED_SIZE + SV2_NEW_TEMPLATE_MESSAGE_SIZE + Poly1305::TAGLEN);
 
     // Get the latest template id
     uint64_t template_id = 0;
@@ -324,22 +128,25 @@ BOOST_AUTO_TEST_CASE(client_tests)
 
     msg = node::Sv2NetMsg{req_tx_data_header.m_msg_type, std::move(template_id_bytes)};
     tester.receiveMessage(msg);
-    const size_t template_id_size = 8;
-    const size_t excess_data_size = 2 + 32;
-    size_t tx_list_size = 2 + 3 + tx_size;
     BOOST_TEST_MESSAGE("Receive RequestTransactionData.Success");
-    BOOST_REQUIRE_EQUAL(tester.PeerReceiveBytes(), SV2_HEADER_ENCRYPTED_SIZE + template_id_size + excess_data_size + tx_list_size + Poly1305::TAGLEN);
+    // RequestTransactionData.Success on-wire size derived from constants and actual tx size
+    constexpr size_t SV2_RTD_SUCCESS_PREFIX = 8 /*template_id*/ + 2 /*excess len*/ + 2 /*tx_count=1*/;
+    constexpr size_t SV2_U24_LEN = 3; // u24 length per tx
     {
-        LOCK(cs_main);
+        // Serialize the same deterministic dummy transaction to get exact size
+        const CTransactionRef tx_ref = MakeDummyTx();
+        DataStream ss_tx{};
+        ss_tx << TX_WITH_WITNESS(*tx_ref);
+        const size_t tx_size = ss_tx.size();
 
-        // RBF the transaction with with > DEFAULT_SV2_FEE_DELTA
-        CreateValidMempoolTransaction(/*input_transaction=*/m_coinbase_txns[0], /*input_vout=*/0,
-                                                    /*input_height=*/0, /*input_signing_key=*/coinbaseKey,
-                                                    /*output_destination=*/locking_script,
-                                                    /*output_amount=*/CAmount(48 * COIN), /*submit=*/true);
-
-        BOOST_REQUIRE_EQUAL(m_node.mempool->size(), 1);
+        const size_t rtd_payload = SV2_RTD_SUCCESS_PREFIX + SV2_U24_LEN + tx_size;
+        const size_t expected_rtd_onwire = SV2_HEADER_ENCRYPTED_SIZE + rtd_payload + Poly1305::TAGLEN;
+        size_t bytes_req_success = tester.PeerReceiveBytes();
+        BOOST_REQUIRE_EQUAL(bytes_req_success, expected_rtd_onwire);
     }
+    // Simulate another fee increase (RBF-like) with a different tx
+    std::vector<CTransactionRef> higher_fee_txs{MakeDummyTx()};
+    tester.m_mining_control->TriggerFeeIncrease(higher_fee_txs);
 
     // Move mock time
     SetMockTime(GetMockTime() + std::chrono::seconds{tester.m_tp_options.fee_check_interval});
@@ -351,7 +158,8 @@ BOOST_AUTO_TEST_CASE(client_tests)
     UninterruptibleSleep(std::chrono::milliseconds{1000});
 
     // Expect our peer to receive a NewTemplate message
-    BOOST_REQUIRE_EQUAL(tester.PeerReceiveBytes(), SV2_HEADER_ENCRYPTED_SIZE + SV2_NEW_TEMPLATE_MESSAGE_SIZE + 32 + Poly1305::TAGLEN);
+    size_t bytes_second_nt = tester.PeerReceiveBytes();
+    BOOST_REQUIRE_EQUAL(bytes_second_nt, SV2_HEADER_ENCRYPTED_SIZE + SV2_NEW_TEMPLATE_MESSAGE_SIZE + Poly1305::TAGLEN);
 
     // Check that there's a new template
     BOOST_REQUIRE_EQUAL(tester.GetBlockTemplateCount(), 3);
@@ -360,17 +168,30 @@ BOOST_AUTO_TEST_CASE(client_tests)
     // We should reply with RequestTransactionData.Success, and the original
     // (replaced) transaction
     tester.receiveMessage(msg);
-    tx_list_size = 2 + 3 + tx_size;
-    BOOST_REQUIRE_EQUAL(tester.PeerReceiveBytes(), SV2_HEADER_ENCRYPTED_SIZE + template_id_size + excess_data_size + tx_list_size + Poly1305::TAGLEN);
+    // Old template RequestTransactionData.Success again
+    {
+        const CTransactionRef tx_ref = MakeDummyTx();
+        DataStream ss_tx{};
+        ss_tx << TX_WITH_WITNESS(*tx_ref);
+        const size_t tx_size = ss_tx.size();
+        const size_t rtd_payload = SV2_RTD_SUCCESS_PREFIX + SV2_U24_LEN + tx_size;
+        const size_t expected_rtd_onwire = SV2_HEADER_ENCRYPTED_SIZE + rtd_payload + Poly1305::TAGLEN;
+        size_t bytes_req_success2 = tester.PeerReceiveBytes();
+        BOOST_REQUIRE_EQUAL(bytes_req_success2, expected_rtd_onwire);
+    }
 
-    BOOST_TEST_MESSAGE("Create a new block");
-    mineBlocks(1);
+    BOOST_TEST_MESSAGE("Create a new block (new tip)");
+    tester.m_mining_control->TriggerNewTip();
 
     UninterruptibleSleep(std::chrono::milliseconds{200});
 
-    // We should send out another NewTemplate and SetNewPrevHash
-    // The new template contains the new prevhash.
-    BOOST_REQUIRE_EQUAL(tester.PeerReceiveBytes(), 2 * SV2_HEADER_ENCRYPTED_SIZE + SV2_NEW_TEMPLATE_MESSAGE_SIZE + 32 + 80 + 2 * Poly1305::TAGLEN);
+    // We should send out another NewTemplate and SetNewPrevHash (two messages)
+    size_t bytes_tip_pair = tester.PeerReceiveBytes();
+    BOOST_REQUIRE_EQUAL(bytes_tip_pair,
+        2 * SV2_HEADER_ENCRYPTED_SIZE +
+        SV2_NEW_TEMPLATE_MESSAGE_SIZE +
+        SV2_SET_NEW_PREV_HASH_MESSAGE_SIZE +
+        2 * Poly1305::TAGLEN);
     // The SetNewPrevHash message is redundant
     // TODO: don't send it?
     // Background: in the future we want to send an empty or optimistic template
@@ -392,8 +213,8 @@ BOOST_AUTO_TEST_CASE(client_tests)
     UninterruptibleSleep(std::chrono::milliseconds{1100});
     BOOST_REQUIRE_EQUAL(tester.GetBlockTemplateCount(), 1);
 
-    // Mine a block in order to interrupt waitNext()
-    mineBlocks(1);
+    // Interrupt waitNext()
+    tester.m_mining_control->Shutdown();
 }
 
 BOOST_AUTO_TEST_SUITE_END()
