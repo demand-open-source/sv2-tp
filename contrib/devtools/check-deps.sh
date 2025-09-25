@@ -161,8 +161,17 @@ if [ ! -f "$BUILD_DIR/Makefile" ]; then
 fi
 
 # Build libraries and run checks.
+# Determine number of parallel jobs in a portable way.
+CORES="1"
+if command -v nproc >/dev/null 2>&1; then
+    CORES="$(nproc)"
+elif [ "$(uname -s)" = "Darwin" ]; then
+    CORES="$(sysctl -n hw.ncpu)"
+elif command -v getconf >/dev/null 2>&1; then
+    CORES="$(getconf _NPROCESSORS_ONLN || echo 1)"
+fi
 # shellcheck disable=SC2046
-cmake --build "$BUILD_DIR" -j"$(nproc)" -t $(lib_targets)
+cmake --build "$BUILD_DIR" -j"$CORES" -t $(lib_targets)
 TEMP_DIR="$(mktemp -d)"
 cd "$BUILD_DIR/lib"
 extract_symbols "$TEMP_DIR"
