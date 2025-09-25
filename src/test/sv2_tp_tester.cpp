@@ -13,7 +13,10 @@
 #include <sv2/template_provider.h>
 #include <sync.h>
 #include <test/util/net.h>
-#include <test/util/setup_common.h>
+#include <util/translation.h>
+
+// Forward-declare the test logging callback provided by main.cpp
+extern std::function<void(const std::string&)> G_TEST_LOG_FUN;
 
 #include "sv2_mock_mining.h"
 

@@ -4,7 +4,7 @@
 #include <interfaces/init.h>
 #include <sv2/messages.h>
 #include <test/util/net.h>
-#include <test/util/setup_common.h>
+#include "sv2_test_setup.h"
 #include <util/sock.h>
 #include <util/strencodings.h>
 // Synchronization primitives (Mutex/LOCK)
@@ -25,7 +25,7 @@
 // For verbose debugging use:
 // build/src/test/test_sv2 --run_test=sv2_template_provider_tests --log_level=all -- -debug=sv2 -loglevel=sv2:trace -printtoconsole=1 | grep -v disabled
 
-BOOST_FIXTURE_TEST_SUITE(sv2_template_provider_tests, TestChain100Setup)
+BOOST_FIXTURE_TEST_SUITE(sv2_template_provider_tests, Sv2BasicTestingSetup)
 
 BOOST_AUTO_TEST_CASE(client_tests)
 {
@@ -62,7 +62,7 @@ BOOST_AUTO_TEST_CASE(client_tests)
         1 +                 // future_template
         4 +                 // version
         4 +                 // coinbase_tx_version
-        1 +                 // coinbase_prefix (CompactSize(0))
+    2 +                 // coinbase_prefix (CompactSize(1) + 1-byte OP_0)
         4 +                 // coinbase_tx_input_sequence
         8 +                 // coinbase_tx_value_remaining
         4 +                 // coinbase_tx_outputs_count (0)

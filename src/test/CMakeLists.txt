@@ -12,8 +12,6 @@ add_windows_application_manifest(test_sv2)
 
 target_link_libraries(test_sv2
   core_interface
-  test_util
-  bitcoin_node
   bitcoin_consensus
   secp256k1
   Boost::headers
@@ -21,6 +19,8 @@ target_link_libraries(test_sv2
 
 target_sources(test_sv2
 PRIVATE
+  util/net.cpp
+  sv2_test_setup.cpp
   sv2_connman_tests.cpp
   sv2_noise_tests.cpp
   sv2_transport_tests.cpp

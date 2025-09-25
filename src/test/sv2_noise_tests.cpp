@@ -1,12 +1,13 @@
 #include <sv2/noise.h>
 #include <key.h>
 #include <random.h>
-#include <test/util/setup_common.h>
+#include "sv2_test_setup.h"
 #include <util/strencodings.h>
+#include <util/vector.h>
 
 #include <boost/test/unit_test.hpp>
 
-BOOST_FIXTURE_TEST_SUITE(sv2_noise_tests, BasicTestingSetup)
+BOOST_FIXTURE_TEST_SUITE(sv2_noise_tests, Sv2BasicTestingSetup)
 
 BOOST_AUTO_TEST_CASE(MixKey_test)
 {

@@ -9,13 +9,16 @@
 
 #include <boost/test/included/unit_test.hpp>
 
-#include <test/util/setup_common.h>
+#include <util/translation.h>
+// Provide a default translation function symbol for libraries that expect it.
+const TranslateFn G_TRANSLATION_FUN{nullptr};
+
 
 #include <functional>
 #include <iostream>
 
 /** Redirect debug log to unit_test.log files */
-const std::function<void(const std::string&)> G_TEST_LOG_FUN = [](const std::string& s) {
+std::function<void(const std::string&)> G_TEST_LOG_FUN = [](const std::string& s) {
     static const bool should_log{std::any_of(
         &boost::unit_test::framework::master_test_suite().argv[1],
         &boost::unit_test::framework::master_test_suite().argv[boost::unit_test::framework::master_test_suite().argc],
@@ -32,7 +35,7 @@ const std::function<void(const std::string&)> G_TEST_LOG_FUN = [](const std::str
  * `test_sv2 --run_test="net_tests/cnode_listen_port" -- -checkaddrman=1 -printtoconsole=1`
  * which would return `["-checkaddrman=1", "-printtoconsole=1"]`.
  */
-const std::function<std::vector<const char*>()> G_TEST_COMMAND_LINE_ARGUMENTS = []() {
+std::function<std::vector<const char*>()> G_TEST_COMMAND_LINE_ARGUMENTS = []() {
     std::vector<const char*> args;
     for (int i = 1; i < boost::unit_test::framework::master_test_suite().argc; ++i) {
         args.push_back(boost::unit_test::framework::master_test_suite().argv[i]);
@@ -43,6 +46,6 @@ const std::function<std::vector<const char*>()> G_TEST_COMMAND_LINE_ARGUMENTS = 
 /**
  * Retrieve the boost unit test name.
  */
-const std::function<std::string()> G_TEST_GET_FULL_NAME = []() {
+std::function<std::string()> G_TEST_GET_FULL_NAME = []() {
     return boost::unit_test::framework::current_test_case().full_name();
 };

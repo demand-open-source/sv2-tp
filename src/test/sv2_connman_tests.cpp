@@ -3,12 +3,12 @@
 #include <sv2/messages.h>
 #include <sv2/transport.h>
 #include <test/util/net.h>
-#include <test/util/setup_common.h>
+#include "sv2_test_setup.h"
 #include <util/sock.h>
 
 #include <memory>
 
-BOOST_FIXTURE_TEST_SUITE(sv2_connman_tests, TestChain100Setup)
+BOOST_FIXTURE_TEST_SUITE(sv2_connman_tests, Sv2BasicTestingSetup)
 
 /**
   * A class for testing the Sv2Connman. Each ConnTester encapsulates a

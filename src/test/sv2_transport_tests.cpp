@@ -9,7 +9,7 @@
 #include <span.h>
 #include <streams.h>
 #include <test/util/random.h>
-#include <test/util/setup_common.h>
+#include "sv2_test_setup.h"
 #include <node/timeoffsets.h>
 #include <util/bitdeque.h>
 #include <util/strencodings.h>
@@ -28,7 +28,7 @@ using node::Sv2NetMsg;
 using node::Sv2CoinbaseOutputConstraintsMsg;
 using node::Sv2MsgType;
 
-BOOST_FIXTURE_TEST_SUITE(sv2_transport_tests, RegTestingSetup)
+BOOST_FIXTURE_TEST_SUITE(sv2_transport_tests, Sv2BasicTestingSetup)
 
 namespace {
 
