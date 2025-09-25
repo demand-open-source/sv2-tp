@@ -12,6 +12,7 @@
 #include <array>
 #include <string>
 #include <key.h>
+#include <common/args.h>
 
 Sv2BasicTestingSetup::Sv2BasicTestingSetup()
 {

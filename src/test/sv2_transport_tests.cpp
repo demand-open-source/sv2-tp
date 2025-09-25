@@ -10,7 +10,6 @@
 #include <streams.h>
 #include <test/util/random.h>
 #include "sv2_test_setup.h"
-#include <node/timeoffsets.h>
 #include <util/bitdeque.h>
 #include <util/strencodings.h>
 #include <util/string.h>

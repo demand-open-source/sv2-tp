@@ -34,18 +34,7 @@
 #include <logging.h>
 #include <net.h>
 #include <netbase.h>
-#include <node/blockmanager_args.h>
-#include <node/blockstorage.h>
-#include <node/caches.h>
-#include <node/chainstate.h>
-#include <node/chainstatemanager_args.h>
-#include <node/context.h>
-#include <node/interface_ui.h>
-#include <node/kernel_notifications.h>
-#include <node/mempool_args.h>
-#include <node/mempool_persist.h>
-#include <node/mempool_persist_args.h>
-#include <node/miner.h>
+// Node-related headers removed; not used in this trimmed-down build.
 #include <policy/feerate.h>
 #include <policy/fees.h>
 #include <policy/fees_args.h>
@@ -94,23 +83,7 @@
 #include <boost/signals2/signal.hpp>
 
 using common::AmountErrMsg;
-using node::ApplyArgsManOptions;
-using node::BlockManager;
-using node::CalculateCacheSizes;
-using node::ChainstateLoadResult;
-using node::ChainstateLoadStatus;
-using node::DEFAULT_PERSIST_MEMPOOL;
-using node::DEFAULT_PRINT_MODIFIED_FEE;
-using node::DEFAULT_STOPATHEIGHT;
-using node::DumpMempool;
-using node::ImportBlocks;
-using node::KernelNotifications;
-using node::LoadChainstate;
-using node::LoadMempool;
-using node::MempoolPath;
-using node::NodeContext;
-using node::ShouldPersistMempool;
-using node::VerifyLoadedChainstate;
+// Node-wide helpers removed in this repo variant.
 using util::Join;
 using util::ToString;
 
@@ -160,7 +133,8 @@ static fs::path GetPidFile(const ArgsManager& args)
         g_generated_pid = true;
         return true;
     } else {
-        return InitError(strprintf(_("Unable to create the PID file '%s': %s"), fs::PathToString(GetPidFile(args)), SysErrorString(errno)));
+    LogError("Unable to create the PID file '%s': %s\n", fs::PathToString(GetPidFile(args)), SysErrorString(errno));
+    return false;
     }
 }
 
@@ -567,7 +541,8 @@ bool AppInitBasicSetup(const ArgsManager& args, std::atomic<int>& exit_status)
     HeapSetInformation(nullptr, HeapEnableTerminationOnCorruption, nullptr, 0);
 #endif
     if (!SetupNetworking()) {
-        return InitError(Untranslated("Initializing networking failed."));
+    LogError("Initializing networking failed.\n");
+    return false;
     }
 
 #ifndef WIN32
@@ -598,16 +573,16 @@ bool AppInitParameterInteraction(const ArgsManager& args)
 
     // We removed checkpoints but keep the option to warn users who still have it in their config.
     if (args.IsArgSet("-checkpoints")) {
-        InitWarning(_("Option '-checkpoints' is set but checkpoints were removed. This option has no effect."));
+    LogWarning("Option '-checkpoints' is set but checkpoints were removed. This option has no effect.\n");
     }
 
     if (args.IsArgSet("-datacarriersize") || args.IsArgSet("-datacarrier")) {
-        InitWarning(_("Options '-datacarrier' or '-datacarriersize' are set but are marked as deprecated. They will be removed in a future version."));
+    LogWarning("Options '-datacarrier' or '-datacarriersize' are set but are marked as deprecated. They will be removed in a future version.\n");
     }
 
     // We no longer limit the orphanage based on number of transactions but keep the option to warn users who still have it in their config.
     if (args.IsArgSet("-maxorphantx")) {
-        InitWarning(_("Option '-maxorphantx' is set but no longer has any effect (see release notes). Please remove it from your configuration."));
+    LogWarning("Option '-maxorphantx' is set but no longer has any effect (see release notes). Please remove it from your configuration.\n");
     }
 
     // Error if network-specific options (-addnode, -connect, etc) are
@@ -623,7 +598,8 @@ bool AppInitParameterInteraction(const ArgsManager& args)
     }
 
     if (!errors.empty()) {
-        return InitError(errors);
+    LogError("%s\n", errors.original);
+    return false;
     }
 
     // Testnet3 deprecation warning
@@ -638,22 +614,24 @@ bool AppInitParameterInteraction(const ArgsManager& args)
     }
 
     if (!warnings.empty()) {
-        InitWarning(warnings);
+    LogWarning("%s\n", warnings.original);
     }
 
     if (!fs::is_directory(args.GetBlocksDirPath())) {
-        return InitError(strprintf(_("Specified blocks directory \"%s\" does not exist."), args.GetArg("-blocksdir", "")));
+    LogError("Specified blocks directory '%s' does not exist.\n", args.GetArg("-blocksdir", ""));
+    return false;
     }
 
     if (args.GetIntArg("-prune", 0)) {
         if (args.GetBoolArg("-reindex-chainstate", false)) {
-            return InitError(_("Prune mode is incompatible with -reindex-chainstate. Use full -reindex instead."));
+            LogError("Prune mode is incompatible with -reindex-chainstate. Use full -reindex instead.\n");
+            return false;
         }
     }
 
     // ********************************************************* Step 3: parameter-to-internal-flags
-    if (auto result{init::SetLoggingCategories(args)}; !result) return InitError(util::ErrorString(result));
-    if (auto result{init::SetLoggingLevel(args)}; !result) return InitError(util::ErrorString(result));
+    if (auto result{init::SetLoggingCategories(args)}; !result) { LogError("%s\n", util::ErrorString(result).original); return false; }
+    if (auto result{init::SetLoggingLevel(args)}; !result) { LogError("%s\n", util::ErrorString(result).original); return false; }
 
     nConnectTimeout = args.GetIntArg("-timeout", DEFAULT_CONNECT_TIMEOUT);
     if (nConnectTimeout <= 0) {
@@ -662,24 +640,28 @@ bool AppInitParameterInteraction(const ArgsManager& args)
 
     if (const auto arg{args.GetArg("-blockmintxfee")}) {
         if (!ParseMoney(*arg)) {
-            return InitError(AmountErrMsg("blockmintxfee", *arg));
+            LogError("%s\n", AmountErrMsg("blockmintxfee", *arg).original);
+            return false;
         }
     }
 
     {
         const auto max_block_weight = args.GetIntArg("-blockmaxweight", DEFAULT_BLOCK_MAX_WEIGHT);
         if (max_block_weight > MAX_BLOCK_WEIGHT) {
-            return InitError(strprintf(_("Specified -blockmaxweight (%d) exceeds consensus maximum block weight (%d)"), max_block_weight, MAX_BLOCK_WEIGHT));
+            LogError("Specified -blockmaxweight (%d) exceeds consensus maximum block weight (%d)\n", max_block_weight, MAX_BLOCK_WEIGHT);
+            return false;
         }
     }
 
     {
         const auto block_reserved_weight = args.GetIntArg("-blockreservedweight", DEFAULT_BLOCK_RESERVED_WEIGHT);
         if (block_reserved_weight > MAX_BLOCK_WEIGHT) {
-            return InitError(strprintf(_("Specified -blockreservedweight (%d) exceeds consensus maximum block weight (%d)"), block_reserved_weight, MAX_BLOCK_WEIGHT));
+            LogError("Specified -blockreservedweight (%d) exceeds consensus maximum block weight (%d)\n", block_reserved_weight, MAX_BLOCK_WEIGHT);
+            return false;
         }
         if (block_reserved_weight < MINIMUM_BLOCK_RESERVED_WEIGHT) {
-            return InitError(strprintf(_("Specified -blockreservedweight (%d) is lower than minimum safety value of (%d)"), block_reserved_weight, MINIMUM_BLOCK_RESERVED_WEIGHT));
+            LogError("Specified -blockreservedweight (%d) is lower than minimum safety value of (%d)\n", block_reserved_weight, MINIMUM_BLOCK_RESERVED_WEIGHT);
+            return false;
         }
     }
 
@@ -693,7 +675,8 @@ bool AppInitParameterInteraction(const ArgsManager& args)
     const std::vector<std::string> test_options = args.GetArgs("-test");
     if (!test_options.empty()) {
         if (chainparams.GetChainType() != ChainType::REGTEST) {
-            return InitError(Untranslated("-test=<option> can only be used with regtest"));
+            LogError("-test=<option> can only be used with regtest\n");
+            return false;
         }
         for (const std::string& option : test_options) {
             auto it = std::find_if(TEST_OPTIONS_DOC.begin(), TEST_OPTIONS_DOC.end(), [&option](const std::string& doc_option) {
@@ -701,7 +684,7 @@ bool AppInitParameterInteraction(const ArgsManager& args)
                 return (pos != std::string::npos) && (doc_option.substr(0, pos) == option);
             });
             if (it == TEST_OPTIONS_DOC.end()) {
-                InitWarning(strprintf(_("Unrecognised option \"%s\" provided in -test=<option>."), option));
+                LogWarning("Unrecognised option '%s' provided in -test=<option>.\n", option);
             }
         }
     }
@@ -716,7 +699,8 @@ bool AppInitParameterInteraction(const ArgsManager& args)
         };
         auto chainman_result{ApplyArgsManOptions(args, chainman_opts_dummy)};
         if (!chainman_result) {
-            return InitError(util::ErrorString(chainman_result));
+            LogError("%s\n", util::ErrorString(chainman_result).original);
+            return false;
         }
         BlockManager::Options blockman_opts_dummy{
             .chainparams = chainman_opts_dummy.chainparams,
@@ -729,12 +713,14 @@ bool AppInitParameterInteraction(const ArgsManager& args)
         };
         auto blockman_result{ApplyArgsManOptions(args, blockman_opts_dummy)};
         if (!blockman_result) {
-            return InitError(util::ErrorString(blockman_result));
+            LogError("%s", util::ErrorString(blockman_result).original);
+            return false;
         }
         CTxMemPool::Options mempool_opts{};
         auto mempool_result{ApplyArgsManOptions(args, chainparams, mempool_opts)};
         if (!mempool_result) {
-            return InitError(util::ErrorString(mempool_result));
+            LogError("%s", util::ErrorString(mempool_result).original);
+            return false;
         }
     }
 
@@ -746,9 +732,11 @@ static bool LockDirectory(const fs::path& dir, bool probeOnly)
     // Make sure only a single process is using the directory.
     switch (util::LockDirectory(dir, ".lock", probeOnly)) {
     case util::LockResult::ErrorWrite:
-        return InitError(strprintf(_("Cannot write to directory '%s'; check permissions."), fs::PathToString(dir)));
+        LogError("Cannot write to directory '%s'; check permissions.", fs::PathToString(dir));
+        return false;
     case util::LockResult::ErrorLock:
-        return InitError(strprintf(_("Cannot obtain a lock on directory %s. %s is probably already running."), fs::PathToString(dir), CLIENT_NAME));
+        LogError("Cannot obtain a lock on directory %s. %s is probably already running.", fs::PathToString(dir), CLIENT_NAME);
+        return false;
     case util::LockResult::Success: return true;
     } // no default case, so the compiler can warn about missing cases
     assert(false);
@@ -764,12 +752,14 @@ bool AppInitSanityChecks(const kernel::Context& kernel)
     // ********************************************************* Step 4: sanity checks
     auto result{kernel::SanityChecks(kernel)};
     if (!result) {
-        InitError(util::ErrorString(result));
-        return InitError(strprintf(_("Initialization sanity check failed. %s is shutting down."), CLIENT_NAME));
+        LogError("Initialization sanity check failed: %s", util::ErrorString(result).original);
+        LogError("%s is shutting down.", CLIENT_NAME);
+        return false;
     }
 
     if (!ECC_InitSanityCheck()) {
-        return InitError(strprintf(_("Elliptic curve cryptography sanity check failure. %s is shutting down."), CLIENT_NAME));
+        LogError("Elliptic curve cryptography sanity check failure. %s is shutting down.", CLIENT_NAME);
+        return false;
     }
 
     // Probe the directory locks to give an early error message, if possible
@@ -959,7 +949,8 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
             try {
                 ipc->listenAddress(address);
             } catch (const std::exception& e) {
-                return InitError(Untranslated(strprintf("Unable to bind to IPC address '%s'. %s", address, e.what())));
+                LogError("Unable to bind to IPC address '%s'. %s", address, e.what());
+                return false;
             }
             LogInfo("Listening for IPC requests on address %s", address);
         }
@@ -1005,7 +996,8 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
             args);
     }
     if (status != ChainstateLoadStatus::SUCCESS && status != ChainstateLoadStatus::INTERRUPTED) {
-        return InitError(error);
+        LogError("%s", error); // already bilingual_str
+        return false;
     }
 
     // As LoadBlockIndex can take several minutes, it's possible the user
@@ -1041,11 +1033,11 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     // ********************************************************* Step 11: import blocks
 
     if (!CheckDiskSpace(args.GetDataDirNet())) {
-        InitError(strprintf(_("Error: Disk space is low for %s"), fs::quoted(fs::PathToString(args.GetDataDirNet()))));
+        LogError("Error: Disk space is low for %s", fs::quoted(fs::PathToString(args.GetDataDirNet())));
         return false;
     }
     if (!CheckDiskSpace(args.GetBlocksDirPath())) {
-        InitError(strprintf(_("Error: Disk space is low for %s"), fs::quoted(fs::PathToString(args.GetBlocksDirPath()))));
+        LogError("Error: Disk space is low for %s", fs::quoted(fs::PathToString(args.GetBlocksDirPath())));
         return false;
     }
 
@@ -1060,13 +1052,9 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
                 assumed_chain_bytes};
 
         if (!CheckDiskSpace(args.GetBlocksDirPath(), additional_bytes_needed)) {
-            InitWarning(strprintf(_(
-                    "Disk space for %s may not accommodate the block files. " \
-                    "Approximately %u GB of data will be stored in this directory."
-                ),
+            LogWarning("Disk space for %s may not accommodate the block files. Approximately %u GB of data will be stored in this directory.",
                 fs::quoted(fs::PathToString(args.GetBlocksDirPath())),
-                chainparams.AssumedBlockchainSize()
-            ));
+                chainparams.AssumedBlockchainSize());
         }
     }
 
@@ -1075,8 +1063,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         const auto path_desc{strprintf("%s (\"%s\")", desc, fs::PathToString(path))};
         switch (GetFilesystemType(path)) {
         case FSType::EXFAT:
-            InitWarning(strprintf(_("The %s path uses exFAT, which is known to have intermittent corruption problems on macOS. "
-                "Move this directory to a different filesystem to avoid data loss."), path_desc));
+            LogWarning("The %s path uses exFAT, which is known to have intermittent corruption problems on macOS. Move this directory to a different filesystem to avoid data loss.", path_desc);
             break;
         case FSType::ERROR:
             LogInfo("Failed to detect filesystem type for %s", path_desc);

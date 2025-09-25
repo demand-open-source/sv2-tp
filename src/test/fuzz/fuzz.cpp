@@ -6,7 +6,6 @@
 
 #include <netaddress.h>
 #include <netbase.h>
-#include <test/fuzz/check_globals.h>
 #include <test/util/coverage.h>
 #include <test/util/random.h>
 #include <util/check.h>
@@ -83,7 +82,6 @@ static const TypeTestOneInput* g_test_one_input{nullptr};
 
 static void test_one_input(FuzzBufferType buffer)
 {
-    CheckGlobals check{};
     (*Assert(g_test_one_input))(buffer);
 }
 
@@ -93,7 +91,6 @@ extern const std::function<std::string()> G_TEST_GET_FULL_NAME{[]{
 
 static void initialize()
 {
-    CheckGlobals check{};
     // By default, make the RNG deterministic with a fixed seed. This will affect all
     // randomness during the fuzz test, except:
     // - GetStrongRandBytes(), which is used for the creation of private key material.

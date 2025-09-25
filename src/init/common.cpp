@@ -7,7 +7,6 @@
 #include <clientversion.h>
 #include <common/args.h>
 #include <logging.h>
-#include <node/interface_ui.h>
 #include <tinyformat.h>
 #include <util/fs.h>
 #include <util/fs_helpers.h>
@@ -111,8 +110,8 @@ bool StartLogging(const ArgsManager& args)
         }
     }
     if (!LogInstance().StartLogging()) {
-            return InitError(Untranslated(strprintf("Could not open debug log file %s",
-                fs::PathToString(LogInstance().m_file_path))));
+            LogError("Could not open debug log file %s", fs::PathToString(LogInstance().m_file_path));
+            return false;
     }
 
     if (!LogInstance().m_log_timestamps) {
@@ -130,7 +129,7 @@ bool StartLogging(const ArgsManager& args)
     } else if (fs::exists(config_file_path)) {
         LogInfo("Config file: %s", fs::PathToString(config_file_path));
     } else if (args.IsArgSet("-conf")) {
-        InitWarning(strprintf(_("The specified config file %s does not exist"), fs::PathToString(config_file_path)));
+        LogWarning("The specified config file %s does not exist", fs::PathToString(config_file_path));
     } else {
         // Not categorizing as "Warning" because it's the default behavior
         LogInfo("Config file: %s (not found, skipping)", fs::PathToString(config_file_path));

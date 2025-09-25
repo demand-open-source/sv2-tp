@@ -109,7 +109,6 @@ add_library(bitcoin_common STATIC EXCLUDE_FROM_ALL
   net_types.cpp
   netaddress.cpp
   netbase.cpp
-  node/interface_ui.cpp
   outputtype.cpp
   policy/feerate.cpp
   policy/policy.cpp
@@ -136,76 +135,6 @@ target_link_libraries(bitcoin_common
 
 include(InstallBinaryComponent)
 
-
-# Only used by the tests
-add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
-  bip324.cpp
-  blockencodings.cpp
-  blockfilter.cpp
-  consensus/tx_verify.cpp
-  dbwrapper.cpp
-  deploymentstatus.cpp
-  flatfile.cpp
-  headerssync.cpp
-  init.cpp
-  kernel/chain.cpp
-  kernel/checks.cpp
-  kernel/coinstats.cpp
-  kernel/context.cpp
-  kernel/cs_main.cpp
-  kernel/disconnected_transactions.cpp
-  kernel/mempool_removal_reason.cpp
-  net.cpp
-  node/abort.cpp
-  node/blockmanager_args.cpp
-  node/blockstorage.cpp
-  node/caches.cpp
-  node/chainstate.cpp
-  node/chainstatemanager_args.cpp
-  node/coin.cpp
-  node/coins_view_args.cpp
-  node/connection_types.cpp
-  node/context.cpp
-  node/database_args.cpp
-  node/interfaces.cpp
-  node/kernel_notifications.cpp
-  node/mempool_args.cpp
-  node/mempool_persist.cpp
-  node/mempool_persist_args.cpp
-  node/miner.cpp
-  node/mini_miner.cpp
-  node/timeoffsets.cpp
-  node/transaction.cpp
-  node/warnings.cpp
-  noui.cpp
-  policy/ephemeral_policy.cpp
-  policy/fees.cpp
-  policy/fees_args.cpp
-  policy/packages.cpp
-  policy/rbf.cpp
-  policy/settings.cpp
-  policy/truc_policy.cpp
-  script/sigcache.cpp
-  signet.cpp
-  txdb.cpp
-  txgraph.cpp
-  txmempool.cpp
-  txrequest.cpp
-  validation.cpp
-  validationinterface.cpp
-  versionbits.cpp
-)
-target_link_libraries(bitcoin_node
-  PRIVATE
-    core_interface
-    bitcoin_common
-    bitcoin_util
-    leveldb
-    univalue
-    Boost::headers
-    $<TARGET_NAME_IF_EXISTS:USDT::headers>
-)
-
 if(BUILD_MINE)
   add_executable(sv2-tp
     sv2-tp.cpp
@@ -222,9 +151,7 @@ if(BUILD_MINE)
   install_binary_component(sv2-tp HAS_MANPAGE)
 endif()
 
-if(BUILD_KERNEL_LIB)
-  add_subdirectory(kernel)
-endif()
+## Kernel library is not used in this repository; remove optional subdirectory.
 
 add_subdirectory(test/util)
 

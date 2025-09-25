@@ -6,7 +6,7 @@
 #include <noui.h>
 
 #include <logging.h>
-#include <node/interface_ui.h>
+#include <node/types.h>
 #include <util/translation.h>
 
 #include <string>
@@ -59,9 +59,7 @@ void noui_InitMessage(const std::string& message)
 
 void noui_connect()
 {
-    noui_ThreadSafeMessageBoxConn = uiInterface.ThreadSafeMessageBox_connect(noui_ThreadSafeMessageBox);
-    noui_ThreadSafeQuestionConn = uiInterface.ThreadSafeQuestion_connect(noui_ThreadSafeQuestion);
-    noui_InitMessageConn = uiInterface.InitMessage_connect(noui_InitMessage);
+    // UI interface removed; keep no-op connections to satisfy linkage if called in tests
 }
 
 bool noui_ThreadSafeMessageBoxRedirect(const bilingual_str& message, const std::string& caption, unsigned int style)
@@ -83,18 +81,10 @@ void noui_InitMessageRedirect(const std::string& message)
 
 void noui_test_redirect()
 {
-    noui_ThreadSafeMessageBoxConn.disconnect();
-    noui_ThreadSafeQuestionConn.disconnect();
-    noui_InitMessageConn.disconnect();
-    noui_ThreadSafeMessageBoxConn = uiInterface.ThreadSafeMessageBox_connect(noui_ThreadSafeMessageBoxRedirect);
-    noui_ThreadSafeQuestionConn = uiInterface.ThreadSafeQuestion_connect(noui_ThreadSafeQuestionRedirect);
-    noui_InitMessageConn = uiInterface.InitMessage_connect(noui_InitMessageRedirect);
+    // UI interface removed; no-op
 }
 
 void noui_reconnect()
 {
-    noui_ThreadSafeMessageBoxConn.disconnect();
-    noui_ThreadSafeQuestionConn.disconnect();
-    noui_InitMessageConn.disconnect();
-    noui_connect();
+    // UI interface removed; no-op
 }
