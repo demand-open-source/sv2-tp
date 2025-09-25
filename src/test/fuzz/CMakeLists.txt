@@ -2,24 +2,28 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://opensource.org/license/mit/.
 
-add_subdirectory(util)
-
 add_executable(fuzz)
+
+# Minimal SV2-only fuzz target. Do not link the generic fuzz library or bitcoin_node.
+target_sources(fuzz
+  PRIVATE
+    fuzz.cpp
+    sv2_noise.cpp
+    check_globals.cpp
+    ../sv2_test_setup.cpp
+)
 
 target_link_libraries(fuzz
   core_interface
   fuzzer_interface
-  test_fuzz
   bitcoin_common
   bitcoin_util
+  bitcoin_sv2
   secp256k1
   Boost::headers
+  test_util
 )
 
-target_sources(fuzz
-PRIVATE
-  sv2_noise.cpp
-)
-target_link_libraries(fuzz
-  bitcoin_sv2
-)
+if(NOT FUZZ_BINARY_LINKS_WITHOUT_MAIN_FUNCTION)
+  target_compile_definitions(fuzz PRIVATE PROVIDE_FUZZ_MAIN_FUNCTION)
+endif()

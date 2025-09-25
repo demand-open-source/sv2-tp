@@ -261,6 +261,27 @@ $ FUZZ=process_message ./honggfuzz/honggfuzz -i inputs/ -- build_fuzz/bin/fuzz
 
 Read the [Honggfuzz documentation](https://github.com/google/honggfuzz/blob/master/docs/USAGE.md) for more information.
 
+# SV2-only fuzz target quick tips
+
+This tree exposes a minimal SV2-only fuzz target compiled into the `fuzz` binary. To list targets:
+
+```sh
+$ PRINT_ALL_FUZZ_TARGETS_AND_ABORT=1 build_fuzz/bin/fuzz
+```
+
+To run the SV2 noise roundtrip target with visible logs during a short run:
+
+```sh
+$ FUZZ=sv2_noise_cipher_roundtrip \
+   build_fuzz/bin/fuzz -runs=1000 -- --debug=sv2 --loglevel=sv2:trace --printtoconsole=1
+```
+
+Alternatively, you can use environment variables to enable logs without passing `--` arguments:
+
+```sh
+$ SV2_FUZZ_LOG=1 FUZZ=sv2_noise_cipher_roundtrip build_fuzz/bin/fuzz -runs=1000
+```
+
 # OSS-Fuzz
 
 Bitcoin Core participates in Google's [OSS-Fuzz](https://github.com/google/oss-fuzz/tree/master/projects/bitcoin-core)

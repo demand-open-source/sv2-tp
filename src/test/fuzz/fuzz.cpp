@@ -6,10 +6,9 @@
 
 #include <netaddress.h>
 #include <netbase.h>
-#include <test/fuzz/util/check_globals.h>
+#include <test/fuzz/check_globals.h>
 #include <test/util/coverage.h>
 #include <test/util/random.h>
-#include <test/util/setup_common.h>
 #include <util/check.h>
 #include <util/fs.h>
 #include <util/sock.h>
@@ -37,7 +36,7 @@
 __AFL_FUZZ_INIT();
 #endif
 
-const std::function<void(const std::string&)> G_TEST_LOG_FUN{};
+extern const std::function<void(const std::string&)> G_TEST_LOG_FUN{};
 
 /**
  * A copy of the command line arguments that start with `--`.
@@ -58,7 +57,7 @@ static void SetArgs(int argc, char** argv) {
     }
 }
 
-const std::function<std::vector<const char*>()> G_TEST_COMMAND_LINE_ARGUMENTS = []() {
+extern const std::function<std::vector<const char*>()> G_TEST_COMMAND_LINE_ARGUMENTS = []() {
     return g_args;
 };
 
@@ -88,7 +87,7 @@ static void test_one_input(FuzzBufferType buffer)
     (*Assert(g_test_one_input))(buffer);
 }
 
-const std::function<std::string()> G_TEST_GET_FULL_NAME{[]{
+extern const std::function<std::string()> G_TEST_GET_FULL_NAME{[]{
     return std::string{g_fuzz_target};
 }};
 
