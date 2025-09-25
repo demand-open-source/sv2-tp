@@ -1207,15 +1207,14 @@ All `release-notes*` files are merged into a single `release-notes-<version>.md`
 
 Internal interfaces between parts of the codebase that are meant to be
 independent (node, wallet, GUI), are defined in
-[`src/interfaces/`](../src/interfaces/). The main interface classes defined
-there are [`interfaces::Chain`](../src/interfaces/chain.h), used by wallet to
-access the node's latest chain state,
-[`interfaces::Node`](../src/interfaces/node.h), used by the GUI to control the
-node and [`interfaces::Mining`](../src/interfaces/mining.h),
-used by RPC to generate block templates. There are also more specialized interface
-types like [`interfaces::Handler`](../src/interfaces/handler.h)
-[`interfaces::ChainClient`](../src/interfaces/chain.h) passed to and from
-various interface methods.
+[`src/interfaces/`](../src/interfaces/). Upstream Bitcoin Core provides
+`interfaces::Chain` and `interfaces::Node` abstractions for wallet and GUI
+integration, but the SV2 fork removes these layers and keeps only
+[`interfaces::Mining`](../src/interfaces/mining.h) alongside helper types such
+as [`interfaces::Handler`](../src/interfaces/handler.h). The mining interface
+is the sole boundary the template provider relies on; other legacy interface
+headers remain as no-op stubs for compatibility with includes that may still
+exist in downstream code.
 
 Interface classes are written in a particular style so node, wallet, and GUI
 code doesn't need to run in the same process, and so the class declarations

@@ -10,7 +10,6 @@
 #include <functional>
 #include <memory>
 #include <thread>
-#include <vector>
 
 class ArgsManager;
 class BanMan;
@@ -22,9 +21,6 @@ class ChainstateManager;
 class ECC_Context;
 class Sv2TemplateProvider;
 namespace interfaces {
-class Chain;
-class ChainClient;
-class Mining;
 class Init;
 } // namespace interfaces
 namespace kernel {
@@ -62,12 +58,6 @@ struct NodeContext {
     std::unique_ptr<CBlockPolicyEstimator> fee_estimator;
     std::unique_ptr<ChainstateManager> chainman;
     ArgsManager* args{nullptr}; // Currently a raw pointer because the memory is not managed by this struct
-    std::unique_ptr<interfaces::Chain> chain;
-    //! List of all chain clients (wallet processes or other client) connected to node.
-    std::vector<std::unique_ptr<interfaces::ChainClient>> chain_clients;
-    //! Reference to chain client that should used to load or create wallets
-    //! opened by the gui.
-    std::unique_ptr<interfaces::Mining> mining;
     std::unique_ptr<CScheduler> scheduler;
     std::function<void()> rpc_interruption_point = [] {};
     //! Issues blocking calls about sync status, errors and warnings

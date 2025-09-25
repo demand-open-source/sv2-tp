@@ -12,9 +12,6 @@
 static constexpr bool DEFAULT_DAEMON = false;
 
 class ArgsManager;
-namespace interfaces {
-struct BlockAndHeaderTipInfo;
-}
 namespace kernel {
 struct Context;
 }
@@ -59,15 +56,12 @@ bool AppInitSanityChecks(const kernel::Context& kernel);
  */
 bool AppInitLockDirectories();
 /**
- * Initialize node and wallet interface pointers. Has no prerequisites or side effects besides allocating memory.
- */
-bool AppInitInterfaces(node::NodeContext& node);
 /**
  * Bitcoin core main initialization.
  * @note This should only be done after daemonization. Call Shutdown() if this function fails.
  * @pre Parameters should be parsed and config file should be read, AppInitLockDirectories should have been called.
  */
-bool AppInitMain(node::NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info = nullptr);
+bool AppInitMain(node::NodeContext& node);
 
 /**
  * Register all arguments with the ArgsManager
