@@ -76,6 +76,7 @@ add_library(bitcoin_common STATIC EXCLUDE_FROM_ALL
   pubkey.cpp
   primitives/block.cpp
   primitives/transaction.cpp
+  script/script.cpp
   netaddress.cpp
   netbase.cpp
   common/sockman.cpp
