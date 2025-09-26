@@ -192,3 +192,16 @@ size_t TPTester::GetBlockTemplateCount()
     LOCK(m_tp->m_tp_mutex);
     return m_tp->GetBlockTemplates().size();
 }
+
+void TPTester::FlushForTesting()
+{
+    // If the event loop is not running there is nothing to flush.
+    if (!m_loop) return;
+
+    // A few sync barriers separated by short sleeps so any work posted from
+    // prior callbacks (including nested posts) can run before teardown.
+    for (int i = 0; i < 3; ++i) {
+        m_loop->sync([&] {});
+        UninterruptibleSleep(std::chrono::milliseconds{50});
+    }
+}

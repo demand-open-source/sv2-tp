@@ -50,6 +50,21 @@ public:
     void receiveMessage(Sv2NetMsg& msg);
     Sv2NetMsg SetupConnectionMsg();
     size_t GetBlockTemplateCount();
+
+    /**
+     * Flush outstanding asynchronous tasks for deterministic test teardown.
+     *
+     * The template provider test exercises a high volume of IPC calls in a short
+     * time window. Some of these schedule callbacks on the libmultiprocess event
+     * loop. When the test ends immediately after triggering shutdown, a posted
+     * callback may still be pending, leading to an assertion in mp/proxy.cpp
+     * checking that no callback (m_post_fn) remains at EventLoop destruction.
+     *
+     * This helper places a few synchronization barriers on the event loop and
+     * inserts short sleeps between them to give any concurrently queued work a
+     * chance to run before objects are destroyed.
+     */
+    void FlushForTesting();
 };
 
 #endif // BITCOIN_TEST_SV2_TP_TESTER_H

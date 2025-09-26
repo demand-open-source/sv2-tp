@@ -216,6 +216,12 @@ BOOST_AUTO_TEST_CASE(client_tests)
 
     // Interrupt waitNext()
     tester.m_mining_control->Shutdown();
+
+    // Drain any pending IPC callbacks before TPTester destructor tears down
+    // the event loop to avoid mp/proxy assertion on outstanding post.
+    tester.FlushForTesting();
+    // Final brief wait as an additional safeguard on slower CI hosts.
+    UninterruptibleSleep(std::chrono::milliseconds{50});
 }
 
 BOOST_AUTO_TEST_SUITE_END()
