@@ -35,6 +35,10 @@ BOOST_AUTO_TEST_CASE(MixKey_test)
 
 BOOST_AUTO_TEST_CASE(certificate_test)
 {
+    // Set a fixed deterministic mock time (Bitcoin genesis timestamp)
+    // Simplicity: we do not restore the previous mock time.
+    SetMockTime(std::chrono::seconds{1231006505});
+
     auto alice_static_key{GenerateRandomKey()};
     auto alice_authority_key{GenerateRandomKey()};
 

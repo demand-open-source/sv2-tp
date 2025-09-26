@@ -27,6 +27,9 @@ BOOST_FIXTURE_TEST_SUITE(sv2_template_provider_tests, Sv2BasicTestingSetup)
 
 BOOST_AUTO_TEST_CASE(client_tests)
 {
+    // Initialize deterministic mock time baseline (Bitcoin genesis timestamp) for consistency
+    SetMockTime(std::chrono::seconds{1231006505});
+
     TPTester tester{};
 
     tester.handshake();
