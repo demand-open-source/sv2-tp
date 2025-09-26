@@ -36,8 +36,6 @@ BOOST_AUTO_TEST_CASE(client_tests)
 
     // After the handshake the client must send a SetupConnection message to the
     // Template Provider.
-
-    tester.handshake();
     BOOST_TEST_MESSAGE("Handshake done, send SetupConnectionMsg");
 
     node::Sv2NetMsg setup{tester.SetupConnectionMsg()};
