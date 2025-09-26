@@ -8,13 +8,13 @@
 
 #include <attributes.h>
 #include <crypto/common.h>
-#include <crypto/ripemd160.h>
 #include <crypto/sha256.h>
 #include <prevector.h>
 #include <serialize.h>
 #include <span.h>
 #include <uint256.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -45,18 +45,20 @@ public:
     }
 };
 
-/** A hasher class for Bitcoin's 160-bit hash (SHA-256 + RIPEMD-160). */
+/** A hasher class for hashing to 160 bits (double SHA-256 truncated). */
 class CHash160 {
 private:
     CSHA256 sha;
 public:
-    static const size_t OUTPUT_SIZE = CRIPEMD160::OUTPUT_SIZE;
+    static constexpr size_t OUTPUT_SIZE = 20;
 
     void Finalize(std::span<unsigned char> output) {
         assert(output.size() == OUTPUT_SIZE);
         unsigned char buf[CSHA256::OUTPUT_SIZE];
         sha.Finalize(buf);
-        CRIPEMD160().Write(buf, CSHA256::OUTPUT_SIZE).Finalize(output.data());
+        unsigned char second[CSHA256::OUTPUT_SIZE];
+        CSHA256().Write(buf, CSHA256::OUTPUT_SIZE).Finalize(second);
+        std::copy(second, second + OUTPUT_SIZE, output.begin());
     }
 
     CHash160& Write(std::span<const unsigned char> input) {
@@ -217,13 +219,5 @@ void BIP32Hash(const ChainCode &chainCode, unsigned int nChild, unsigned char he
  * then calling HashWriter::GetSHA256().
  */
 HashWriter TaggedHash(const std::string& tag);
-
-/** Compute the 160-bit RIPEMD-160 hash of an array. */
-inline uint160 RIPEMD160(std::span<const unsigned char> data)
-{
-    uint160 result;
-    CRIPEMD160().Write(data.data(), data.size()).Finalize(result.begin());
-    return result;
-}
 
 #endif // BITCOIN_HASH_H

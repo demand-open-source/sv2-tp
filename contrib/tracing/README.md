@@ -67,7 +67,7 @@ inbound 'pong' msg from peer 11 (outbound-full-relay, [2a02:b10c:f747:1:ef:fake:
 inbound 'inv' msg from peer 16 (outbound-full-relay, XX.XX.XXX.121:8333) with 37 bytes
 outbound 'getdata' msg to peer 16 (outbound-full-relay, XX.XX.XXX.121:8333) with 37 bytes
 inbound 'tx' msg from peer 16 (outbound-full-relay, XX.XX.XXX.121:8333) with 222 bytes
-outbound 'inv' msg to peer 9 (outbound-full-relay, faketorv3addressa2ufa6odvoi3s77j4uegey0xb10csyfyve2t33curbyd.onion:8333) with 37 bytes
+outbound 'inv' msg to peer 9 (outbound-full-relay, [fd6b:88c0:8724::abcd]:8333) with 37 bytes
 outbound 'inv' msg to peer 7 (outbound-full-relay, XX.XX.XXX.242:8333) with 37 bytes
 …
 ```
@@ -94,8 +94,8 @@ Lists selectable peers and traffic and connection information.
     0  46          398 byte  61      1407590 byte  block-relay-only       XX.XX.XXX.196:8333
    11  1156     253570 byte  3431    2394924 byte  outbound-full-relay    XXX.X.XX.179:8333
    13  3425    1809620 byte  1236     305458 byte  inbound                XXX.X.X.X:60380
-   16  1046     241633 byte  1589    1199220 byte  outbound-full-relay    4faketorv2pbfu7x.onion:8333
-   19  577      181679 byte  390      148951 byte  outbound-full-relay    kfake4vctorjv2o2.onion:8333
+        16  1046     241633 byte  1589    1199220 byte  outbound-full-relay    [fd6b:88c0:8724::abcd]:8333
+        19  577      181679 byte  390      148951 byte  outbound-full-relay    [fd6b:88c0:8724::1234]:8333
    20  11         1248 byte  13         1283 byte  block-relay-only       [2600:fake:64d9:b10c:4436:aaaa:fe:bb]:8333
    21  11         1248 byte  13         1299 byte  block-relay-only       XX.XXX.X.155:8333
    22  5           103 byte  1           102 byte  feeler                 XX.XX.XXX.173:8333
@@ -108,7 +108,7 @@ Showing recent P2P messages between our node and a selected peer.
 
 ```
     ----------------------------------------------------------------------
-    |                PEER 16 (4faketorv2pbfu7x.onion:8333)               |
+    |                PEER 16 ([fd6b:88c0:8724::abcd]:8333)                                              |
     | OUR NODE                outbound-full-relay                   PEER |
     |                                           <--- sendcmpct (9 bytes) |
     | inv (37 byte) --->                                                 |

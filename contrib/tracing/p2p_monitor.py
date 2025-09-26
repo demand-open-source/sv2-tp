@@ -25,8 +25,7 @@ from bcc import BPF, USDT
 program = """
 #include <uapi/linux/ptrace.h>
 
-// Tor v3 addresses are 62 chars + 6 chars for the port (':12345').
-// I2P addresses are 60 chars + 6 chars for the port (':12345').
+// IPv6 addresses (including scope identifiers) can be over 60 chars plus 6 chars for the port (':12345').
 #define MAX_PEER_ADDR_LENGTH 62 + 6
 #define MAX_PEER_CONN_TYPE_LENGTH 20
 #define MAX_MSG_TYPE_LENGTH 20

@@ -189,7 +189,6 @@ static const std::map<std::string, BCLog::LogFlags, std::less<>> LOG_CATEGORIES_
     {"coindb", BCLog::COINDB},
     {"qt", BCLog::QT},
     {"validation", BCLog::VALIDATION},
-    {"i2p", BCLog::I2P},
     {"ipc", BCLog::IPC},
 #ifdef DEBUG_LOCKCONTENTION
     {"lock", BCLog::LOCK},

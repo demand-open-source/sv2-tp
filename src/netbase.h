@@ -153,9 +153,6 @@ private:
             NET_UNROUTABLE,
             NET_IPV4,
             NET_IPV6,
-            NET_ONION,
-            NET_I2P,
-            NET_CJDNS,
             NET_INTERNAL
         };
     };
@@ -350,15 +347,6 @@ bool Socks5(const std::string& strDest, uint16_t port, const ProxyCredentials* a
  * @returns whether the port is bad
  */
 bool IsBadPort(uint16_t port);
-
-/**
- * If an IPv6 address belongs to the address range used by the CJDNS network and
- * the CJDNS network is reachable (-cjdnsreachable config is set), then change
- * the type from NET_IPV6 to NET_CJDNS.
- * @param[in] service Address to potentially convert.
- * @return a copy of `service` either unmodified or changed to CJDNS.
- */
-CService MaybeFlipIPv6toCJDNS(const CService& service);
 
 /** Get the bind address for a socket as CService. */
 CService GetBindAddress(const Sock& sock);

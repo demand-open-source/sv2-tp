@@ -32,9 +32,6 @@ constexpr auto ALL_NETWORKS = std::array{
     Network::NET_UNROUTABLE,
     Network::NET_IPV4,
     Network::NET_IPV6,
-    Network::NET_ONION,
-    Network::NET_I2P,
-    Network::NET_CJDNS,
     Network::NET_INTERNAL,
 };
 

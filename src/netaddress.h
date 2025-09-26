@@ -39,15 +39,6 @@ enum Network {
     /// IPv6
     NET_IPV6,
 
-    /// TOR (v2 or v3)
-    NET_ONION,
-
-    /// I2P
-    NET_I2P,
-
-    /// CJDNS
-    NET_CJDNS,
-
     /// A set of addresses that represent the hash of a string or FQDN. We use
     /// them in AddrMan to keep track of which DNS seeds were used.
     NET_INTERNAL,
@@ -61,13 +52,6 @@ enum Network {
 static const std::array<uint8_t, 12> IPV4_IN_IPV6_PREFIX{
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF};
 
-/// Prefix of an IPv6 address when it contains an embedded TORv2 address.
-/// Used when (un)serializing addresses in ADDRv1 format (pre-BIP155).
-/// Such dummy IPv6 addresses are guaranteed to not be publicly routable as they
-/// fall under RFC4193's fc00::/7 subnet allocated to unique-local addresses.
-static const std::array<uint8_t, 6> TORV2_IN_IPV6_PREFIX{
-    0xFD, 0x87, 0xD8, 0x7E, 0xEB, 0x43};
-
 /// Prefix of an IPv6 address when it contains an embedded "internal" address.
 /// Used when (un)serializing addresses in ADDRv1 format (pre-BIP155).
 /// The prefix comes from 0xFD + SHA256("bitcoin")[0:5].
@@ -77,33 +61,14 @@ static const std::array<uint8_t, 6> INTERNAL_IN_IPV6_PREFIX{
     0xFD, 0x6B, 0x88, 0xC0, 0x87, 0x24 // 0xFD + sha256("bitcoin")[0:5].
 };
 
-/// All CJDNS addresses start with 0xFC. See
-/// https://github.com/cjdelisle/cjdns/blob/master/doc/Whitepaper.md#pulling-it-all-together
-static constexpr uint8_t CJDNS_PREFIX{0xFC};
-
 /// Size of IPv4 address (in bytes).
 static constexpr size_t ADDR_IPV4_SIZE = 4;
 
 /// Size of IPv6 address (in bytes).
 static constexpr size_t ADDR_IPV6_SIZE = 16;
 
-/// Size of TORv3 address (in bytes). This is the length of just the address
-/// as used in BIP155, without the checksum and the version byte.
-static constexpr size_t ADDR_TORV3_SIZE = 32;
-
-/// Size of I2P address (in bytes).
-static constexpr size_t ADDR_I2P_SIZE = 32;
-
-/// Size of CJDNS address (in bytes).
-static constexpr size_t ADDR_CJDNS_SIZE = 16;
-
 /// Size of "internal" (NET_INTERNAL) address (in bytes).
 static constexpr size_t ADDR_INTERNAL_SIZE = 10;
-
-/// SAM 3.1 and earlier do not support specifying ports and force the port to 0.
-static constexpr uint16_t I2P_SAM31_PORT{0};
-
-std::string OnionToString(std::span<const uint8_t> addr);
 
 /**
  * Network address.
@@ -143,16 +108,6 @@ public:
 
     bool SetInternal(const std::string& name);
 
-    /**
-     * Parse a Tor or I2P address and set this object to it.
-     * @param[in] addr Address to parse, for example
-     * pg6mmjiyjmcrsslvykfwnntlaru7p5svn6y2ymmju6nubxndf4pscryd.onion or
-     * ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p.
-     * @returns Whether the operation was successful.
-     * @see CNetAddr::IsTor(), CNetAddr::IsI2P()
-     */
-    bool SetSpecial(const std::string& addr);
-
     bool IsBindAny() const; // INADDR_ANY equivalent
     [[nodiscard]] bool IsIPv4() const { return m_net == NET_IPV4; } // IPv4 mapped address (::FFFF:0:0/96, 0.0.0.0/0)
     [[nodiscard]] bool IsIPv6() const { return m_net == NET_IPV6; } // IPv6 address (not mapped IPv4, not Tor)
@@ -171,21 +126,10 @@ public:
     bool IsRFC6052() const; // IPv6 well-known prefix for IPv4-embedded address (64:FF9B::/96)
     bool IsRFC6145() const; // IPv6 IPv4-translated address (::FFFF:0:0:0/96) (actually defined in RFC2765)
     bool IsHeNet() const;   // IPv6 Hurricane Electric - https://he.net (2001:0470::/36)
-    [[nodiscard]] bool IsTor() const { return m_net == NET_ONION; }
-    [[nodiscard]] bool IsI2P() const { return m_net == NET_I2P; }
-    [[nodiscard]] bool IsCJDNS() const { return m_net == NET_CJDNS; }
-    [[nodiscard]] bool HasCJDNSPrefix() const { return m_addr[0] == CJDNS_PREFIX; }
     bool IsLocal() const;
     bool IsRoutable() const;
     bool IsInternal() const;
     bool IsValid() const;
-
-    /**
-     * Whether this object is a privacy network.
-     * TODO: consider adding IsCJDNS() here when more peers adopt CJDNS, see:
-     * https://github.com/bitcoin/bitcoin/pull/27411#issuecomment-1497176155
-     */
-    [[nodiscard]] bool IsPrivacyNet() const { return IsTor() || IsI2P(); }
 
     /**
      * Check if the current object can be serialized in pre-ADDRv2/BIP155 format.
@@ -217,106 +161,28 @@ public:
      */
     bool IsRelayable() const
     {
-        return IsIPv4() || IsIPv6() || IsTor() || IsI2P() || IsCJDNS();
+        return IsIPv4() || IsIPv6();
     }
 
-    enum class Encoding {
-        V1,
-        V2, //!< BIP155 encoding
-    };
-    struct SerParams {
-        const Encoding enc;
-        SER_PARAMS_OPFUNC
-    };
-    static constexpr SerParams V1{Encoding::V1};
-    static constexpr SerParams V2{Encoding::V2};
-
-    /**
-     * Serialize to a stream.
-     */
     template <typename Stream>
     void Serialize(Stream& s) const
     {
-        if (s.template GetParams<SerParams>().enc == Encoding::V2) {
-            SerializeV2Stream(s);
-        } else {
-            SerializeV1Stream(s);
-        }
+        SerializeV1Stream(s);
     }
 
-    /**
-     * Unserialize from a stream.
-     */
     template <typename Stream>
     void Unserialize(Stream& s)
     {
-        if (s.template GetParams<SerParams>().enc == Encoding::V2) {
-            UnserializeV2Stream(s);
-        } else {
-            UnserializeV1Stream(s);
-        }
+        UnserializeV1Stream(s);
     }
-
-    /**
-     * BIP155 network ids recognized by this software.
-     */
-    enum BIP155Network : uint8_t {
-        IPV4 = 1,
-        IPV6 = 2,
-        TORV2 = 3,
-        TORV3 = 4,
-        I2P = 5,
-        CJDNS = 6,
-    };
 
     friend class CSubNet;
 
 private:
     /**
-     * Parse a Tor address and set this object to it.
-     * @param[in] addr Address to parse, must be a valid C string, for example
-     * pg6mmjiyjmcrsslvykfwnntlaru7p5svn6y2ymmju6nubxndf4pscryd.onion.
-     * @returns Whether the operation was successful.
-     * @see CNetAddr::IsTor()
-     */
-    bool SetTor(const std::string& addr);
-
-    /**
-     * Parse an I2P address and set this object to it.
-     * @param[in] addr Address to parse, must be a valid C string, for example
-     * ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p.
-     * @returns Whether the operation was successful.
-     * @see CNetAddr::IsI2P()
-     */
-    bool SetI2P(const std::string& addr);
-
-    /**
      * Size of CNetAddr when serialized as ADDRv1 (pre-BIP155) (in bytes).
      */
     static constexpr size_t V1_SERIALIZATION_SIZE = ADDR_IPV6_SIZE;
-
-    /**
-     * Maximum size of an address as defined in BIP155 (in bytes).
-     * This is only the size of the address, not the entire CNetAddr object
-     * when serialized.
-     */
-    static constexpr size_t MAX_ADDRV2_SIZE = 512;
-
-    /**
-     * Get the BIP155 network id of this address.
-     * Must not be called for IsInternal() objects.
-     * @returns BIP155 network id, except TORV2 which is no longer supported.
-     */
-    BIP155Network GetBIP155Network() const;
-
-    /**
-     * Set `m_net` from the provided BIP155 network id and size after validation.
-     * @retval true the network was recognized, is valid and `m_net` was set
-     * @retval false not recognised (from future?) and should be silently ignored
-     * @throws std::ios_base::failure if the network is one of the BIP155 founding
-     * networks (id 1..6) with wrong address size.
-     */
-    bool SetNetFromBIP155Network(uint8_t possible_bip155_net, size_t address_size);
 
     /**
      * Serialize in pre-ADDRv2/BIP155 format to an array.
@@ -342,16 +208,11 @@ private:
             memcpy(arr, INTERNAL_IN_IPV6_PREFIX.data(), prefix_size);
             memcpy(arr + prefix_size, m_addr.data(), m_addr.size());
             return;
-        case NET_ONION:
-        case NET_I2P:
-        case NET_CJDNS:
-            break;
         case NET_UNROUTABLE:
         case NET_MAX:
             assert(false);
         } // no default case, so the compiler can warn about missing cases
 
-        // Serialize ONION, I2P and CJDNS as all-zeros.
         memset(arr, 0x0, V1_SERIALIZATION_SIZE);
     }
 
@@ -366,25 +227,6 @@ private:
         SerializeV1Array(serialized);
 
         s << serialized;
-    }
-
-    /**
-     * Serialize as ADDRv2 / BIP155.
-     */
-    template <typename Stream>
-    void SerializeV2Stream(Stream& s) const
-    {
-        if (IsInternal()) {
-            // Serialize NET_INTERNAL as embedded in IPv6. We need to
-            // serialize such addresses from addrman.
-            s << static_cast<uint8_t>(BIP155Network::IPV6);
-            s << COMPACTSIZE(ADDR_IPV6_SIZE);
-            SerializeV1Stream(s);
-            return;
-        }
-
-        s << static_cast<uint8_t>(GetBIP155Network());
-        s << m_addr;
     }
 
     /**
@@ -416,64 +258,6 @@ private:
         UnserializeV1Array(serialized);
     }
 
-    /**
-     * Unserialize from a ADDRv2 / BIP155 format.
-     */
-    template <typename Stream>
-    void UnserializeV2Stream(Stream& s)
-    {
-        uint8_t bip155_net;
-        s >> bip155_net;
-
-        size_t address_size;
-        s >> COMPACTSIZE(address_size);
-
-        if (address_size > MAX_ADDRV2_SIZE) {
-            throw std::ios_base::failure(strprintf(
-                "Address too long: %u > %u", address_size, MAX_ADDRV2_SIZE));
-        }
-
-        m_scope_id = 0;
-
-        if (SetNetFromBIP155Network(bip155_net, address_size)) {
-            m_addr.resize(address_size);
-            s >> std::span{m_addr};
-
-            if (m_net != NET_IPV6) {
-                return;
-            }
-
-            // Do some special checks on IPv6 addresses.
-
-            // Recognize NET_INTERNAL embedded in IPv6, such addresses are not
-            // gossiped but could be coming from addrman, when unserializing from
-            // disk.
-            if (util::HasPrefix(m_addr, INTERNAL_IN_IPV6_PREFIX)) {
-                m_net = NET_INTERNAL;
-                memmove(m_addr.data(), m_addr.data() + INTERNAL_IN_IPV6_PREFIX.size(),
-                        ADDR_INTERNAL_SIZE);
-                m_addr.resize(ADDR_INTERNAL_SIZE);
-                return;
-            }
-
-            if (!util::HasPrefix(m_addr, IPV4_IN_IPV6_PREFIX) &&
-                !util::HasPrefix(m_addr, TORV2_IN_IPV6_PREFIX)) {
-                return;
-            }
-
-            // IPv4 and TORv2 are not supposed to be embedded in IPv6 (like in V1
-            // encoding). Unserialize as !IsValid(), thus ignoring them.
-        } else {
-            // If we receive an unknown BIP155 network id (from the future?) then
-            // ignore the address - unserialize as !IsValid().
-            s.ignore(address_size);
-        }
-
-        // Mimic a default-constructed CNetAddr object which is !IsValid() and thus
-        // will not be gossiped, but continue reading next addresses from the stream.
-        m_net = NET_IPV6;
-        m_addr.assign(ADDR_IPV6_SIZE, 0x0);
-    }
 };
 
 class CSubNet
@@ -567,7 +351,6 @@ public:
     }
 
     friend class CServiceHash;
-    friend CService MaybeFlipIPv6toCJDNS(const CService& service);
 };
 
 class CServiceHash

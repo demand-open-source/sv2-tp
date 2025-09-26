@@ -82,8 +82,7 @@ namespace BCLog {
     COINDB      = (CategoryMask{1} << 18),
     QT          = (CategoryMask{1} << 19),
     VALIDATION  = (CategoryMask{1} << 21),
-        I2P         = (CategoryMask{1} << 22),
-        IPC         = (CategoryMask{1} << 23),
+    IPC         = (CategoryMask{1} << 22),
 #ifdef DEBUG_LOCKCONTENTION
         LOCK        = (CategoryMask{1} << 24),
 #endif

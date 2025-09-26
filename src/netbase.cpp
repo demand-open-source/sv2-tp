@@ -100,17 +100,6 @@ enum Network ParseNetwork(const std::string& net_in) {
     std::string net = ToLower(net_in);
     if (net == "ipv4") return NET_IPV4;
     if (net == "ipv6") return NET_IPV6;
-    if (net == "onion") return NET_ONION;
-    if (net == "tor") {
-        LogPrintf("Warning: net name 'tor' is deprecated and will be removed in the future. You should use 'onion' instead.\n");
-        return NET_ONION;
-    }
-    if (net == "i2p") {
-        return NET_I2P;
-    }
-    if (net == "cjdns") {
-        return NET_CJDNS;
-    }
     return NET_UNROUTABLE;
 }
 
@@ -120,9 +109,6 @@ std::string GetNetworkName(enum Network net)
     case NET_UNROUTABLE: return "not_publicly_routable";
     case NET_IPV4: return "ipv4";
     case NET_IPV6: return "ipv6";
-    case NET_ONION: return "onion";
-    case NET_I2P: return "i2p";
-    case NET_CJDNS: return "cjdns";
     case NET_INTERNAL: return "internal";
     case NET_MAX: assert(false);
     } // no default case, so the compiler can warn about missing cases
@@ -147,16 +133,6 @@ std::vector<std::string> GetNetworkNames(bool append_unroutable)
 static std::vector<CNetAddr> LookupIntern(const std::string& name, unsigned int nMaxSolutions, bool fAllowLookup, DNSLookupFn dns_lookup_function)
 {
     if (!ContainsNoNUL(name)) return {};
-    {
-        CNetAddr addr;
-        // From our perspective, onion addresses are not hostnames but rather
-        // direct encodings of CNetAddr much like IPv4 dotted-decimal notation
-        // or IPv6 colon-separated hextet notation. Since we can't use
-        // getaddrinfo to decode them and it wouldn't make sense to resolve
-        // them, we return a network address representing it instead. See
-        // CNetAddr::SetSpecial(const std::string&) for more details.
-        if (addr.SetSpecial(name)) return {addr};
-    }
 
     std::vector<CNetAddr> addresses;
 
@@ -276,14 +252,6 @@ enum SOCKS5Reply: uint8_t {
     TTLEXPIRED = 0x06,                 //!< RFC1928: TTL expired
     CMDUNSUPPORTED = 0x07,             //!< RFC1928: Command not supported
     ATYPEUNSUPPORTED = 0x08,           //!< RFC1928: Address type not supported
-    TOR_HS_DESC_NOT_FOUND = 0xf0,      //!< Tor: Onion service descriptor can not be found
-    TOR_HS_DESC_INVALID = 0xf1,        //!< Tor: Onion service descriptor is invalid
-    TOR_HS_INTRO_FAILED = 0xf2,        //!< Tor: Onion service introduction failed
-    TOR_HS_REND_FAILED = 0xf3,         //!< Tor: Onion service rendezvous failed
-    TOR_HS_MISSING_CLIENT_AUTH = 0xf4, //!< Tor: Onion service missing client authorization
-    TOR_HS_WRONG_CLIENT_AUTH = 0xf5,   //!< Tor: Onion service wrong client authorization
-    TOR_HS_BAD_ADDRESS = 0xf6,         //!< Tor: Onion service invalid address
-    TOR_HS_INTRO_TIMEOUT = 0xf7,       //!< Tor: Onion service introduction timed out
 };
 
 /** Values defined for ATYPE in RFC1928 */
@@ -371,22 +339,6 @@ static std::string Socks5ErrorString(uint8_t err)
             return "protocol error";
         case SOCKS5Reply::ATYPEUNSUPPORTED:
             return "address type not supported";
-        case SOCKS5Reply::TOR_HS_DESC_NOT_FOUND:
-            return "onion service descriptor can not be found";
-        case SOCKS5Reply::TOR_HS_DESC_INVALID:
-            return "onion service descriptor is invalid";
-        case SOCKS5Reply::TOR_HS_INTRO_FAILED:
-            return "onion service introduction failed";
-        case SOCKS5Reply::TOR_HS_REND_FAILED:
-            return "onion service rendezvous failed";
-        case SOCKS5Reply::TOR_HS_MISSING_CLIENT_AUTH:
-            return "onion service missing client authorization";
-        case SOCKS5Reply::TOR_HS_WRONG_CLIENT_AUTH:
-            return "onion service wrong client authorization";
-        case SOCKS5Reply::TOR_HS_BAD_ADDRESS:
-            return "onion service invalid address";
-        case SOCKS5Reply::TOR_HS_INTRO_TIMEOUT:
-            return "onion service introduction timed out";
         default:
             return strprintf("unknown (0x%02x)", err);
     }
@@ -825,7 +777,6 @@ CSubNet LookupSubNet(const std::string& subnet_str)
     std::optional<CNetAddr> addr{LookupHost(str_addr, /*fAllowLookup=*/false)};
 
     if (addr.has_value()) {
-        addr = static_cast<CNetAddr>(MaybeFlipIPv6toCJDNS(CService{addr.value(), /*port=*/0}));
         if (slash_pos != subnet_str.npos) {
             const std::string netmask_str{subnet_str.substr(slash_pos + 1)};
             if (const auto netmask{ToIntegral<uint8_t>(netmask_str)}) {
@@ -940,15 +891,6 @@ bool IsBadPort(uint16_t port)
         return true;
     }
     return false;
-}
-
-CService MaybeFlipIPv6toCJDNS(const CService& service)
-{
-    CService ret{service};
-    if (ret.IsIPv6() && ret.HasCJDNSPrefix() && g_reachable_nets.Contains(NET_CJDNS)) {
-        ret.m_net = NET_CJDNS;
-    }
-    return ret;
 }
 
 CService GetBindAddress(const Sock& sock)
