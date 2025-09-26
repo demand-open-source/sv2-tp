@@ -14,7 +14,6 @@ from subprocess import check_output, CalledProcessError
 
 
 KNOWN_VIOLATIONS = [
-    "src/dbwrapper.cpp:.*vsnprintf",
     "src/span.h:.*printf",
     "src/test/fuzz/locale.cpp:.*setlocale",
     "src/test/util_tests.cpp:.*strtoll",
@@ -24,7 +23,6 @@ KNOWN_VIOLATIONS = [
 REGEXP_EXTERNAL_DEPENDENCIES_EXCLUSIONS = [
     "src/crypto/ctaes/",
     "src/ipc/libmultiprocess/",
-    "src/leveldb/",
     "src/secp256k1/",
     "src/tinyformat.h",
 ]

@@ -28,9 +28,7 @@ EXCLUDE_COMPILED = re.compile('|'.join([fnmatch.translate(m) for m in EXCLUDE]))
 EXCLUDE_DIRS = [
     # git subtrees
     "src/crypto/ctaes/",
-    "src/leveldb/",
     "src/secp256k1/",
-    "src/crc32c/",
 ]
 
 INCLUDE = ['*.h', '*.cpp', '*.cc', '*.c', '*.mm', '*.py', '*.sh', '*.bash-completion']

@@ -15,8 +15,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 # These need to be included before CMAKE_*_OUTPUT_DIRECTORY variables
 # are set, so output locations of subproject tests and libraries are
 # not overridden.
-include(../cmake/crc32c.cmake)
-include(../cmake/leveldb.cmake)
 add_subdirectory(univalue)
 if (NOT WITH_EXTERNAL_LIBMULTIPROCESS)
   include(../cmake/libmultiprocess.cmake)

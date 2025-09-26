@@ -495,7 +495,7 @@ llvm-cov show \
     --object=build/bin/bitcoind \
     -Xdemangler=llvm-cxxfilt \
     --instr-profile=build/coverage.profdata \
-    --ignore-filename-regex="src/crc32c/|src/leveldb/|src/secp256k1/|src/test/" \
+  --ignore-filename-regex="src/secp256k1/|src/test/" \
     --format=html \
     --show-instantiation-summary \
     --show-line-counts-or-regions \
@@ -539,7 +539,7 @@ llvm-cov show \
     --object=build/bin/fuzz \
     -Xdemangler=llvm-cxxfilt \
     --instr-profile=build/coverage.profdata \
-    --ignore-filename-regex="src/crc32c/|src/leveldb/|src/secp256k1/|src/test/" \
+  --ignore-filename-regex="src/secp256k1/|src/test/" \
     --format=html \
     --show-instantiation-summary \
     --show-line-counts-or-regions \
@@ -1075,64 +1075,6 @@ There is a tool in `test/lint/git-subtree-check.sh` ([instructions](../test/lint
 to check a subtree directory for consistency with its upstream repository.
 
 The tool instructions also include a list of the subtrees managed by Bitcoin Core.
-
-The ultimate upstream of the few externally managed subtrees are:
-
-- src/leveldb
-  - Upstream at https://github.com/google/leveldb ; maintained by Google. Open
-    important PRs to the Bitcoin Core subtree to avoid delay.
-  - **Note**: Follow the instructions in [Upgrading LevelDB](#upgrading-leveldb) when
-    merging upstream changes to the LevelDB subtree.
-
-- src/crc32c
-  - Used by leveldb for hardware acceleration of CRC32C checksums for data integrity.
-  - Upstream at https://github.com/google/crc32c ; maintained by Google.
-
-## Upgrading LevelDB
-
-Extra care must be taken when upgrading LevelDB. This section explains issues
-you must be aware of.
-
-### File Descriptor Counts
-
-In most configurations, we use the default LevelDB value for `max_open_files`,
-which is 1000 at the time of this writing. If LevelDB actually uses this many
-file descriptors, it will cause problems with Bitcoin's `select()` loop, because
-it may cause new sockets to be created where the fd value is >= 1024. For this
-reason, on 64-bit Unix systems, we rely on an internal LevelDB optimization that
-uses `mmap()` + `close()` to open table files without actually retaining
-references to the table file descriptors. If you are upgrading LevelDB, you must
-sanity check the changes to make sure that this assumption remains valid.
-
-In addition to reviewing the upstream changes in `env_posix.cc`, you can use `lsof` to
-check this. For example, on Linux this command will show open `.ldb` file counts:
-
-```bash
-$ lsof -p $(pidof bitcoind) |\
-    awk 'BEGIN { fd=0; mem=0; } /ldb$/ { if ($4 == "mem") mem++; else fd++ } END { printf "mem = %s, fd = %s\n", mem, fd}'
-mem = 119, fd = 0
-```
-
-The `mem` value shows how many files are mmap'ed, and the `fd` value shows how
-many file descriptors these files are using. You should check that `fd` is a
-small number (usually 0 on 64-bit hosts).
-
-See the notes in the `SetMaxOpenFiles()` function in `dbwrapper.cc` for more
-details.
-
-### Consensus Compatibility
-
-It is possible for LevelDB changes to inadvertently change consensus
-compatibility between nodes. This happened in Bitcoin 0.8 (when LevelDB was
-first introduced). When upgrading LevelDB, you should review the upstream changes
-to check for issues affecting consensus compatibility.
-
-For example, if LevelDB had a bug that accidentally prevented a key from being
-returned in an edge case, and that bug was fixed upstream, the bug "fix" would
-be an incompatible consensus change. In this situation, the correct behavior
-would be to revert the upstream fix before applying the updates to Bitcoin's
-copy of LevelDB. In general, you should be wary of any upstream changes affecting
-what data is returned from LevelDB queries.
 
 ## Scripted diffs
 
