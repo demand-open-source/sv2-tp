@@ -24,8 +24,8 @@ class MockMining;
 class TPTester {
 private:
     std::unique_ptr<Sv2Transport> m_peer_transport; //!< Transport for peer
-    [[maybe_unused]] std::shared_ptr<DynSock::Queue> m_tp_accepted_sockets{std::make_shared<DynSock::Queue>()};
-    [[maybe_unused]] std::shared_ptr<DynSock::Pipes> m_current_client_pipes;
+    std::shared_ptr<DynSock::Queue> m_tp_accepted_sockets{std::make_shared<DynSock::Queue>()};
+    std::shared_ptr<DynSock::Pipes> m_current_client_pipes;
 
     // IPC loopback components
     std::thread m_loop_thread;

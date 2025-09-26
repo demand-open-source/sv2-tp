@@ -7,6 +7,7 @@
 #include <random.h>
 #include <span.h>
 #include <test/fuzz/FuzzedDataProvider.h>
+#include <test/fuzz/check_globals.h>
 #include <test/fuzz/fuzz.h>
 #include <test/sv2_test_setup.h>
 #include <functional>
@@ -77,6 +78,7 @@ bool MaybeDamage(FuzzedDataProvider& provider, std::vector<std::byte>& transport
 
 FUZZ_TARGET(sv2_noise_cipher_roundtrip, .init = Initialize)
 {
+    const CheckGlobals check_globals{};
     SeedRandomStateForTest(SeedRand::ZEROS);
     // Test that Sv2Noise's encryption and decryption agree.
 

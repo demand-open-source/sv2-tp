@@ -8,6 +8,7 @@ add_executable(fuzz)
 target_sources(fuzz
   PRIVATE
     fuzz.cpp
+    check_globals.cpp
     sv2_noise.cpp
     ../sv2_test_setup.cpp
 )
