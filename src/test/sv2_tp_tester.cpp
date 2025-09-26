@@ -113,15 +113,21 @@ TPTester::~TPTester()
         }
         // Ask event loop to drop all incoming connections now. This will
         // close streams on the loop thread and let the loop exit cleanly.
+        // IMPORTANT: Do not call sync() again after this point. Clearing the
+        // connection list may cause the loop() function to observe its done()
+        // condition and return, destroying the stack-allocated EventLoop
+        // object while we still hold the raw pointer in m_loop. A subsequent
+        // sync() would then post() to freed memory leading to the ASan crash
+        // observed at EventLoop::post (proxy.cpp:268) in CI.
         m_loop->sync([&] { m_loop->m_incoming_connections.clear(); });
-        // Final brief tick
-        m_loop->sync([&] {});
-        UninterruptibleSleep(20ms);
     }
     // Mark FDs invalid to avoid accidental double-close (they are
     // owned by the connections cleared above).
     m_ipc_fds[0] = -1;
     m_ipc_fds[1] = -1;
+    // After clearing connections the loop may exit at any time; avoid further
+    // dereferences through m_loop. Set to nullptr here for safety, then join.
+    m_loop = nullptr; // no further sync() calls; pointer invalid after loop may exit
     // Wait for event loop to exit (exits when no clients remain)
     if (m_loop_thread.joinable()) m_loop_thread.join();
 }
