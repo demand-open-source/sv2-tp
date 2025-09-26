@@ -3,7 +3,6 @@
 # file COPYING or https://opensource.org/license/mit/.
 
 add_library(bitcoin_crypto STATIC EXCLUDE_FROM_ALL
-  aes.cpp
   chacha20.cpp
   chacha20poly1305.cpp
   hex_base.cpp

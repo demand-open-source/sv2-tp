@@ -202,7 +202,6 @@ fn commit_range() -> String {
 fn get_subtrees() -> Vec<&'static str> {
     // Keep in sync with [test/lint/README.md#git-subtree-checksh]
     vec![
-        "src/crypto/ctaes",
         "src/ipc/libmultiprocess",
         "src/secp256k1",
     ]
