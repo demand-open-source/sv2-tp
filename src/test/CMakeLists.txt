@@ -10,10 +10,14 @@ add_executable(test_sv2
 
 add_windows_application_manifest(test_sv2)
 
+# Link all required libraries in a single keyword-style invocation to avoid
+# mixing plain and keyword signatures (prevents duplicate library warnings too).
 target_link_libraries(test_sv2
-  core_interface
-  secp256k1
-  Boost::headers
+  PRIVATE
+    core_interface
+    Boost::headers
+    bitcoin_sv2
+    bitcoin_ipc
 )
 
 target_sources(test_sv2
@@ -29,7 +33,6 @@ PRIVATE
   sv2_template_provider_tests.cpp
   sv2_tester_lifecycle_tests.cpp
 )
-target_link_libraries(test_sv2 bitcoin_sv2 bitcoin_ipc)
 
 # Ensure Cap'n Proto generated headers (e.g. src/ipc/capnp/init.capnp.h) are
 # generated before compiling tests that include them directly.
@@ -45,7 +48,7 @@ if(TARGET Libmultiprocess::multiprocess)
   # test_sv2 directly includes generated IPC headers (init.capnp.h) which in turn
   # include libmultiprocess headers (mp/proxy.capnp.h). When using external
   # libmultiprocess, link the imported target to provide the necessary include paths.
-  target_link_libraries(test_sv2 Libmultiprocess::multiprocess)
+  target_link_libraries(test_sv2 PRIVATE Libmultiprocess::multiprocess)
 endif()
 
 function(add_boost_test source_file)

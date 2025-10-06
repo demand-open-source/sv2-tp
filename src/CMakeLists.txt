@@ -102,9 +102,8 @@ if(BUILD_MINE)
   add_windows_application_manifest(sv2-tp)
   target_link_libraries(sv2-tp
     core_interface
-    bitcoin_common
     bitcoin_ipc
-    bitcoin_sv2
+    bitcoin_sv2 # bitcoin_common now transitively provided PUBLIC by bitcoin_sv2
   )
   install_binary_component(sv2-tp HAS_MANPAGE)
 endif()

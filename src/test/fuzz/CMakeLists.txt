@@ -14,14 +14,12 @@ target_sources(fuzz
 )
 
 target_link_libraries(fuzz
-  core_interface
-  fuzzer_interface
-  bitcoin_common
-  bitcoin_util
-  bitcoin_sv2
-  secp256k1
-  Boost::headers
-  test_util
+  PRIVATE
+    core_interface
+    fuzzer_interface
+    bitcoin_sv2 # transitively provides bitcoin_common
+    Boost::headers
+    test_util
 )
 
 if(NOT FUZZ_BINARY_LINKS_WITHOUT_MAIN_FUNCTION)
