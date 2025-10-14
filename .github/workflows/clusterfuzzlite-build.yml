@@ -19,6 +19,7 @@ jobs:
         sanitizer:
           - address
           - undefined
+          - memory
     steps:
       - name: Checkout
         uses: actions/checkout@v4

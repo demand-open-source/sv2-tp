@@ -9,6 +9,13 @@ permissions: read-all
 jobs:
   prune:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer:
+          - address
+          - undefined
+          - memory
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,16 +25,17 @@ jobs:
         uses: google/clusterfuzzlite/actions/build_fuzzers@v1
         with:
           language: c++
+          sanitizer: ${{ matrix.sanitizer }}
           storage-repo: https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/Sjors/sv2-tp-fuzz-storage.git
           storage-repo-branch: master
           storage-repo-branch-coverage: gh-pages
-          sanitizer: address
       - name: Prune corpora
         uses: google/clusterfuzzlite/actions/run_fuzzers@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           fuzz-seconds: 600
           mode: prune
+          sanitizer: ${{ matrix.sanitizer }}
           storage-repo: https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/Sjors/sv2-tp-fuzz-storage.git
           storage-repo-branch: master
           storage-repo-branch-coverage: gh-pages
