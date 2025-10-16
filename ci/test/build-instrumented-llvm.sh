@@ -3,7 +3,8 @@
 
 export LC_ALL=C
 
-set -o errexit -o nounset -o pipefail -o xtrace
+set -o errexit -o nounset -o pipefail
+# Leave xtrace disabled to keep CI logs readable; enable manually when debugging.
 
 export PATH="${HOME}/.local/bin:${PATH}"
 
@@ -139,8 +140,7 @@ cmake_args=(
 
 cmake "${cmake_args[@]}"
 
-ninja -C /cxx_build/ -t vars COMPILER_RT_BUILD_LIBFUZZER || true
-cmake -LA -N /cxx_build | grep -E 'HAS_FUZZER|FUZZER|LIBCXX' || true
+# Skip diagnostic dumps by default to avoid overwhelming sanitizer logs.
 
 ninja -C /cxx_build/ "$MAKEJOBS"
 
