@@ -76,7 +76,13 @@ auto& FuzzTargets()
 
 void FuzzFrameworkRegisterTarget(std::string_view name, TypeTestOneInput target, FuzzTargetOptions opts)
 {
-    const auto [it, ins]{FuzzTargets().emplace(std::move(name), FuzzTarget{target, opts})};
+    std::string owned_name{name};
+#ifdef MEMORY_SANITIZER
+    if (!owned_name.empty()) {
+        __msan_unpoison(owned_name.data(), owned_name.size());
+    }
+#endif
+    const auto [it, ins]{FuzzTargets().emplace(std::move(owned_name), FuzzTarget{target, opts})};
     Assert(ins);
 }
 
