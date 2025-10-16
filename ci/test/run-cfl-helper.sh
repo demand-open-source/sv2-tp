@@ -35,17 +35,27 @@ docker_common=(
   -w /workspace
 )
 
+# Ensure the base image is quietly available to avoid progress spam from implicit pulls.
+ensure_image_cached() {
+  local image="$1"
+  if ! docker image inspect "$image" >/dev/null 2>&1; then
+    docker pull --quiet "$image"
+  fi
+}
+
 case "${operation}" in
   base-install)
     packages="$(cfl_packages_for_sanitizer "${sanitizer}")"
     CI_RETRY_EXE_CMD='bash ./ci/retry/retry --'
+    image='gcr.io/oss-fuzz-base/clusterfuzzlite-build-fuzzers:v1'
+    ensure_image_cached "$image"
     docker run \
       "${docker_common[@]}" \
       -e "APT_LLVM_V=${APT_VER}" \
       -e "PACKAGES=${packages}" \
       -e SKIP_LIBCPP_RUNTIME_BUILD=1 \
       -e "CI_RETRY_EXE=${CI_RETRY_EXE_CMD}" \
-      gcr.io/oss-fuzz-base/clusterfuzzlite-build-fuzzers:v1 \
+      "$image" \
       -lc './ci/test/01_base_install.sh'
     ;;
   build-toolchain)
@@ -57,6 +67,8 @@ case "${operation}" in
 
     packages="$(cfl_packages_for_sanitizer "${sanitizer}")"
     CI_RETRY_EXE_CMD='bash ./ci/retry/retry --'
+    image='gcr.io/oss-fuzz-base/clusterfuzzlite-build-fuzzers:v1'
+    ensure_image_cached "$image"
     docker run \
       "${docker_common[@]}" \
       -e "USE_INSTRUMENTED_LIBCPP=${mode}" \
@@ -64,7 +76,7 @@ case "${operation}" in
       -e "PACKAGES=${packages}" \
       -e "PIP_PACKAGES=cmake" \
       -e "CI_RETRY_EXE=${CI_RETRY_EXE_CMD}" \
-      gcr.io/oss-fuzz-base/clusterfuzzlite-build-fuzzers:v1 \
+      "$image" \
       -lc "rm -f /workspace/.cfl-base/ci.base-install-done; SKIP_LIBCPP_RUNTIME_BUILD=1 ./ci/test/01_base_install.sh; ./ci/test/build-instrumented-llvm.sh '${sanitizer}'"
     ;;
   *)
