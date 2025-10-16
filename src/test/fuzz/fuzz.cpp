@@ -152,11 +152,12 @@ static void initialize()
         should_exit = true;
     }
     if (const char* out_path_env = std::getenv("WRITE_ALL_FUZZ_TARGETS_AND_ABORT")) {
-        const std::string out_path{RunningUnderClusterFuzzLite() ? "/work/fuzz_targets.txt" : out_path_env};
-        if (!RunningUnderClusterFuzzLite()) {
-            std::cout << "Writing all fuzz target names to '" << out_path << "'." << std::endl;
+        const bool running_under_cfl{RunningUnderClusterFuzzLite()};
+        const char* out_path_cstr{running_under_cfl ? "/work/fuzz_targets.txt" : out_path_env};
+        if (!running_under_cfl) {
+            std::cout << "Writing all fuzz target names to '" << out_path_cstr << "'." << std::endl;
         }
-        std::ofstream out_stream{out_path, std::ios::binary};
+        std::ofstream out_stream{out_path_cstr, std::ios::binary};
         for (const auto& [name, t] : FuzzTargets()) {
             if (t.opts.hidden) continue;
             out_stream << name << std::endl;
