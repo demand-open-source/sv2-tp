@@ -141,7 +141,7 @@ static void initialize()
                             std::getenv("WRITE_ALL_FUZZ_TARGETS_AND_ABORT") != nullptr};
     static std::string g_copy;
     g_copy.assign((env_fuzz != nullptr && env_fuzz[0] != '\0') ? env_fuzz : FuzzTargetPlaceholder);
-    g_fuzz_target = std::string_view{g_copy};
+    g_fuzz_target = std::string_view{g_copy.data(), g_copy.size()};
 
     bool should_exit{false};
     if (std::getenv("PRINT_ALL_FUZZ_TARGETS_AND_ABORT")) {
