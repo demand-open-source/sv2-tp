@@ -80,7 +80,7 @@ struct FuzzTarget {
 
 auto& FuzzTargets()
 {
-    static std::map<std::string_view, FuzzTarget> g_fuzz_targets;
+    static std::map<std::string, FuzzTarget, std::less<>> g_fuzz_targets;
     return g_fuzz_targets;
 }
 
@@ -157,10 +157,15 @@ static void initialize()
         if (!running_under_cfl) {
             std::cout << "Writing all fuzz target names to '" << out_path_cstr << "'." << std::endl;
         }
-        std::ofstream out_stream{out_path_cstr, std::ios::binary};
-        for (const auto& [name, t] : FuzzTargets()) {
-            if (t.opts.hidden) continue;
-            out_stream << name << std::endl;
+        if (FILE* out_file = std::fopen(out_path_cstr, "wb")) {
+            for (const auto& [name, t] : FuzzTargets()) {
+                if (t.opts.hidden) continue;
+                std::fwrite(name.data(), 1, name.size(), out_file);
+                std::fputc('\n', out_file);
+            }
+            std::fclose(out_file);
+        } else {
+            std::perror("fopen fuzz target list");
         }
         should_exit = true;
     }
@@ -168,7 +173,8 @@ static void initialize()
         std::exit(EXIT_SUCCESS);
     }
 
-    const auto it = FuzzTargets().find(g_fuzz_target);
+    const std::string target_name{g_fuzz_target};
+    const auto it = FuzzTargets().find(target_name);
     if (it == FuzzTargets().end()) {
         if (!listing_mode && (env_fuzz == nullptr || env_fuzz[0] == '\0')) {
             std::cerr << "Must select fuzz target with the FUZZ env var." << std::endl;
