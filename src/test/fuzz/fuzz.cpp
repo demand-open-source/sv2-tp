@@ -154,7 +154,8 @@ static void initialize()
         }
         should_exit = true;
     }
-    if (const char* out_path = std::getenv("WRITE_ALL_FUZZ_TARGETS_AND_ABORT")) {
+    if (const char* out_path_env = std::getenv("WRITE_ALL_FUZZ_TARGETS_AND_ABORT")) {
+        const std::string out_path{out_path_env};
         if (!RunningUnderClusterFuzzLite()) {
             std::cout << "Writing all fuzz target names to '" << out_path << "'." << std::endl;
         }
