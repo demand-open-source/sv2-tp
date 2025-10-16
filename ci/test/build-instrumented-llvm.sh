@@ -148,6 +148,11 @@ mapfile -t NINJA_TARGET_LINES < <(ninja -C /cxx_build -t targets)
 
 FUZZER_BUILD_TARGETS=()
 FUZZER_COMPONENT_TARGET=""
+restore_xtrace=0
+if [[ $- == *x* ]]; then
+  set +x
+  restore_xtrace=1
+fi
 for line in "${NINJA_TARGET_LINES[@]}"; do
   target="${line%%:*}"
   case "$target" in
@@ -159,6 +164,9 @@ for line in "${NINJA_TARGET_LINES[@]}"; do
       ;;
   esac
 done
+if [[ $restore_xtrace -eq 1 ]]; then
+  set -x
+fi
 
 if [ "${#FUZZER_BUILD_TARGETS[@]}" -gt 0 ]; then
   cmake --build /cxx_build --target "${FUZZER_BUILD_TARGETS[@]}" --parallel
