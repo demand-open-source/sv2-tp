@@ -140,14 +140,13 @@ static void initialize()
     const bool listing_mode{std::getenv("PRINT_ALL_FUZZ_TARGETS_AND_ABORT") != nullptr ||
                             std::getenv("WRITE_ALL_FUZZ_TARGETS_AND_ABORT") != nullptr};
     bool using_placeholder{false};
-    if (env_fuzz == nullptr || env_fuzz[0] == '\0') {
-        env_fuzz = FuzzTargetPlaceholder;
+    static std::string g_copy;
+    g_copy.assign(env_fuzz != nullptr ? env_fuzz : "");
+
+    if (g_copy.empty()) {
+        g_copy.assign(FuzzTargetPlaceholder);
         using_placeholder = true;
     }
-
-    // To allow for easier fuzz executable binary modification, create a copy that keeps the
-    // placeholder string in the binary so the build script can patch it for each harness.
-    static std::string g_copy{env_fuzz};
     g_fuzz_target = g_copy.c_str();
 
     bool should_exit{false};
