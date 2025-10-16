@@ -348,6 +348,11 @@ if [ "$CUSTOM_LIBCPP" -eq 1 ] && [ -n "$CUSTOM_LIBCPP_LIB_PATH" ]; then
   done
 fi
 
+symbolizer_path="$(command -v llvm-symbolizer || true)"
+if [ -n "$symbolizer_path" ] && [ -x "$symbolizer_path" ]; then
+  cp -a "$symbolizer_path" "$OUT/"
+fi
+
 if [ -d assets/fuzz_dicts ]; then
   find assets/fuzz_dicts -maxdepth 1 -type f -name '*.dict' -exec cp {} "$OUT/" \;
 fi
