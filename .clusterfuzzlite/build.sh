@@ -256,6 +256,7 @@ fi
 
   # Mirror the MSan depends invocation from ci/test/00_setup_env_native_fuzz_with_msan.sh
   # so that dependencies pick up the sanitizer-friendly toolchain.
+  export DEPENDS_LOG_VERBOSE=
   make \
     HOST=$BUILD_TRIPLET \
     DEBUG=1 \
