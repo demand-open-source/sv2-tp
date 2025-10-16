@@ -7,6 +7,9 @@
 #include <crypto/chacha20poly1305.h>
 #include <crypto/hmac_sha256.h>
 #include <logging.h>
+#ifdef MEMORY_SANITIZER
+#include <sanitizer/msan_interface.h>
+#endif
 #include <util/check.h>
 #include <util/strencodings.h>
 #include <util/time.h>
@@ -60,6 +63,9 @@ bool Sv2SignatureNoiseMessage::Validate(XOnlyPubKey authority_key)
 void Sv2SignatureNoiseMessage::SignSchnorr(const CKey& authority_key, std::span<unsigned char> sig)
 {
     authority_key.SignSchnorr(this->GetHash(), sig, nullptr, {});
+#ifdef MEMORY_SANITIZER
+    __msan_unpoison(sig.data(), sig.size());
+#endif
 }
 
 Sv2CipherState::Sv2CipherState(NoiseHash&& key) : m_key(std::move(key)) {};
