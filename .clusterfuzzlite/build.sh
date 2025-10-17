@@ -39,17 +39,22 @@ ensure_symbolizer_available() {
   exit 1
 }
 
-copy_symbolizer_dependencies() {
+SYMBOLIZER_DEPENDENCIES=()
+SYMBOLIZER_LDD_MISSING=0
+
+enumerate_symbolizer_dependencies() {
   local binary="$1"
-  local dest_dir="$2"
+
+  SYMBOLIZER_DEPENDENCIES=()
+  SYMBOLIZER_LDD_MISSING=0
 
   if [ ! -x "$binary" ]; then
-    return
+    return 0
   fi
 
   if ! command -v ldd >/dev/null 2>&1; then
     echo "ldd not available; skipping dependency enumeration for $binary" >&2
-    return
+    return 1
   fi
 
   while IFS= read -r line; do
@@ -58,47 +63,10 @@ copy_symbolizer_dependencies() {
     line="${line#"$leading"}"
     [ -n "$line" ] || continue
 
-    local candidate=""
-    case "$line" in
-      *"=>"*)
-        candidate="${line#*=> }"
-        candidate="${candidate%% *}"
-        ;;
-      /*)
-        candidate="${line%% *}"
-        ;;
-    esac
-
-    if [ -z "$candidate" ] || [ ! -e "$candidate" ]; then
-      continue
-    fi
-
-    local base
-    base="$(basename "$candidate")"
-    if [ -e "$dest_dir/$base" ]; then
-      continue
-    fi
-
-    # Dereference symlinks so copied objects remain self-contained in the bundle.
-    cp -L -p "$candidate" "$dest_dir/"
-    echo "Bundled symbolizer dependency $candidate" >&2
-  done < <(ldd "$binary" 2>/dev/null || true)
-}
-
-verify_symbolizer_bundle() {
-  local binary_path="$1"
-  local dest_dir="$2"
-  local suffix="${3:-}"
-  local missing=0
-
-  while IFS= read -r line; do
-    line="${line#${line%%[![:space:]]*}}"
-    [ -n "$line" ] || continue
-
     case "$line" in
       *"not found"*)
-        echo "Bundled llvm-symbolizer dependency missing${suffix}: $line" >&2
-        missing=1
+        echo "Bundled llvm-symbolizer dependency missing: $line" >&2
+        SYMBOLIZER_LDD_MISSING=1
         continue
         ;;
     esac
@@ -117,21 +85,50 @@ verify_symbolizer_bundle() {
         ;;
     esac
 
-    if [ -z "$candidate" ]; then
+    if [ -z "$candidate" ] || [ ! -e "$candidate" ]; then
       continue
     fi
 
-    if [ ! -e "$candidate" ]; then
+    SYMBOLIZER_DEPENDENCIES+=("$candidate")
+  done < <(ldd "$binary" 2>/dev/null || true)
+
+  return 0
+}
+
+copy_symbolizer_dependencies() {
+  local dest_dir="$1"
+
+  mkdir -p "$dest_dir"
+
+  local candidate base
+  for candidate in "${SYMBOLIZER_DEPENDENCIES[@]}"; do
+    base="$(basename "$candidate")"
+    if [ -e "$dest_dir/$base" ]; then
       continue
     fi
 
-    local base
+    cp -L -p "$candidate" "$dest_dir/"
+    echo "Bundled symbolizer dependency $candidate" >&2
+  done
+}
+
+verify_symbolizer_bundle() {
+  local dest_dir="$1"
+  local suffix="${2:-}"
+  local missing=0
+
+  if [ "${SYMBOLIZER_LDD_MISSING:-0}" -ne 0 ]; then
+    missing=1
+  fi
+
+  local candidate base
+  for candidate in "${SYMBOLIZER_DEPENDENCIES[@]}"; do
     base="$(basename "$candidate")"
     if [ ! -e "$dest_dir/$base" ]; then
       echo "Bundled llvm-symbolizer missing copied library${suffix}: $base" >&2
       missing=1
     fi
-  done < <(LD_LIBRARY_PATH="$dest_dir" ldd "$binary_path" 2>/dev/null || true)
+  done
 
   if [ "$missing" -ne 0 ]; then
     return 1
@@ -151,16 +148,18 @@ bundle_symbolizer() {
   local symbolizer_basename
   symbolizer_basename="$(basename "$symbolizer_realpath")"
 
+  enumerate_symbolizer_dependencies "$symbolizer_realpath"
+
   cp -p "$symbolizer_realpath" "$dest_dir/"
-  copy_symbolizer_dependencies "$symbolizer_realpath" "$dest_dir"
+  copy_symbolizer_dependencies "$dest_dir"
 
   local suffix=""
   if [ -n "$context_label" ]; then
     suffix=" ($context_label)"
   fi
 
-  if ! verify_symbolizer_bundle "$dest_dir/$symbolizer_basename" "$dest_dir" "$suffix"; then
-    (cd "$dest_dir" && ldd "./$symbolizer_basename" >&2) || true
+  if ! verify_symbolizer_bundle "$dest_dir" "$suffix"; then
+    (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./$symbolizer_basename" >&2) || true
     return 1
   fi
 
