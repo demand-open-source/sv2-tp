@@ -115,6 +115,7 @@ static void MaybeConfigureSymbolizer(const char* argv0)
             const ssize_t read_bytes{::readlink("/proc/self/exe", proc_exe.data(), proc_exe.size() - 1)};
             if (read_bytes > 0 && static_cast<std::size_t>(read_bytes) < proc_exe.size()) {
                 proc_exe[static_cast<std::size_t>(read_bytes)] = '\0';
+                UnpoisonArray(proc_exe.data(), static_cast<std::size_t>(read_bytes) + 1);
                 fs::path discovered{proc_exe.data()};
                 Unpoison(discovered);
                 exe_path = std::move(discovered);
