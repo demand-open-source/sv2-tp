@@ -7,6 +7,7 @@
 #include <logging.h>
 #include <netaddress.h>
 #include <netbase.h>
+#include <test/util/clusterfuzzlite.h>
 #include <test/util/coverage.h>
 #include <test/util/random.h>
 #include <util/check.h>
@@ -63,13 +64,6 @@ using util::sanitizer::Unpoison;
 using util::sanitizer::UnpoisonArray;
 using util::sanitizer::UnpoisonCString;
 using util::sanitizer::UnpoisonMemory;
-
-// The instrumented toolchain we ship to ClusterFuzzLite runners lacks the MSan
-// interceptors that unpoison getenv() results, so avoid logging those strings.
-static bool RunningUnderClusterFuzzLite()
-{
-    return GetEnvUnpoisoned("SV2_CLUSTERFUZZLITE") != nullptr;
-}
 
 static void UnpoisonPath(fs::path& path)
 {

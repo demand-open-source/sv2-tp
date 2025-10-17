@@ -7,8 +7,6 @@ date
 
 cd "$SRC/sv2-tp"
 
-export SV2_CLUSTERFUZZLITE=1
-
 # Reuse a repository-local cache by default so helper runs can share state with
 # the workflow containers. Callers may override BASE_ROOT_DIR explicitly.
 BASE_ROOT_DIR="${BASE_ROOT_DIR:-${PWD}/.cfl-base}"
@@ -393,6 +391,8 @@ fi
 
 # Bad build checks re-run the packaged binary in that minimal sandbox; ship the symbolizer beside it.
 cp -a "$EXPECTED_SYMBOLIZER" "$OUT/"
+# Leave a marker so sandboxed bad-build checks can recognise ClusterFuzzLite bundles.
+: >"$OUT/.sv2-clusterfuzzlite"
 
 if [ -d assets/fuzz_dicts ]; then
   find assets/fuzz_dicts -maxdepth 1 -type f -name '*.dict' -exec cp {} "$OUT/" \;

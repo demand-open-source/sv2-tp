@@ -2,6 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <test/util/clusterfuzzlite.h>
 #include <test/util/random.h>
 
 #include <logging.h>
@@ -54,7 +55,7 @@ void SeedRandomStateForTest(SeedRand seedtype)
         Assert(g_ctx_seed.has_value());
         seed = *g_ctx_seed;
     }
-    if (GetEnvUnpoisoned("SV2_CLUSTERFUZZLITE") == nullptr) {
+    if (!RunningUnderClusterFuzzLite()) {
         LogInfo("Setting random seed for current tests to %s=%s\n", RANDOM_CTX_SEED, seed.GetHex());
     }
     MakeRandDeterministicDANGEROUS(seed);

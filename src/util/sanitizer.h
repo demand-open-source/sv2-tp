@@ -9,6 +9,8 @@
 #include <cstdlib>
 #include <type_traits>
 
+#include <util/fs.h>
+
 #if defined(__has_feature)
 #  if __has_feature(memory_sanitizer)
 #    include <sanitizer/msan_interface.h>
@@ -72,6 +74,18 @@ inline const char* GetEnvUnpoisoned(const char* name)
     Unpoison(value);
     UnpoisonCString(value);
     return value;
+}
+
+inline void UnpoisonPath(fs::path& path)
+{
+    Unpoison(path);
+#if defined(BITCOIN_HAVE_MEMORY_SANITIZER)
+    const auto& native{path.native()};
+    const auto count{native.size() + 1};
+    if (count != 0) {
+        UnpoisonMemory(native.c_str(), count * sizeof(fs::path::value_type));
+    }
+#endif
 }
 
 } // namespace sanitizer
