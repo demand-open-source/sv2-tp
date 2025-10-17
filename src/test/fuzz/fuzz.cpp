@@ -164,9 +164,9 @@ static void MaybeConfigureSymbolizer(const char* argv0)
             have_exe_path = exe_path.is_absolute();
         }
 
-        fs::path symbolizer_path{exe_path.parent_path()};
+        fs::path symbolizer_path{exe_path};
         UnpoisonPath(symbolizer_path);
-        symbolizer_path /= "llvm-symbolizer";
+        symbolizer_path.replace_filename("llvm-symbolizer");
         UnpoisonPath(symbolizer_path);
         if (!fs::exists(symbolizer_path) || !fs::is_regular_file(symbolizer_path)) return;
 
