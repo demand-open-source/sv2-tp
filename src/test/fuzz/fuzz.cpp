@@ -148,7 +148,8 @@ static constexpr char FuzzTargetPlaceholder[] = "d6f1a2b39c4e5d7a8b9c0d1e2f30415
  */
 static std::vector<const char*> g_args;
 
-static void SetArgs(int argc, char** argv) {
+static void SetArgs(int argc, char** argv)
+{
     if (argv == nullptr || argc <= 0) return;
     UnpoisonArray(argv, static_cast<std::size_t>(argc));
     if (argv[0] != nullptr) {
@@ -204,7 +205,7 @@ static void test_one_input(FuzzBufferType buffer)
     (*Assert(g_test_one_input))(buffer);
 }
 
-extern const std::function<std::string()> G_TEST_GET_FULL_NAME{[]{
+extern const std::function<std::string()> G_TEST_GET_FULL_NAME{[] {
     return std::string{g_fuzz_target};
 }};
 
