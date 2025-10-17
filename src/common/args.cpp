@@ -14,6 +14,7 @@
 #include <util/check.h>
 #include <util/fs.h>
 #include <util/fs_helpers.h>
+#include <util/sanitizer.h>
 #include <util/strencodings.h>
 #include <util/string.h>
 
@@ -574,8 +575,8 @@ fs::path GetDefaultDataDir()
     return GetSpecialFolderPath(CSIDL_LOCAL_APPDATA) / "Bitcoin";
 #else
     fs::path pathRet;
-    char* pszHome = getenv("HOME");
-    if (pszHome == nullptr || strlen(pszHome) == 0)
+    const char* pszHome = util::sanitizer::GetEnvUnpoisoned("HOME");
+    if (pszHome == nullptr || pszHome[0] == '\0')
         pathRet = fs::path("/");
     else
         pathRet = fs::path(pszHome);
