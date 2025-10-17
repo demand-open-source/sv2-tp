@@ -87,6 +87,8 @@ static void EnsureMsanExternalSymbolizer(const std::string& symbolizer_path)
 {
     const char* existing{GetEnvUnpoisoned("MSAN_OPTIONS")};
     // Always override so packaged harnesses don't inherit stale ClusterFuzzLite paths.
+    // The build stage executes the harness in-place (system /usr/local/ still exists), but
+    // "bad build" replays run from a bundle that only ships our copied symbolizer.
 
     std::string new_opts{"external_symbolizer_path="};
     new_opts.append(symbolizer_path);

@@ -333,6 +333,9 @@ cmake -B build_fuzz \
 
 cmake --build build_fuzz -j"$(nproc)"
 
+# First execution happens inside the build container so we can enumerate targets before bundling.
+# The later "bad build" replay runs in a stripped sandbox with only bundled files, so passing here
+# doesn't guarantee libs/symbolizers are packaged correctly—that check happens post-bundle.
 WRITE_ALL_FUZZ_TARGETS_AND_ABORT="$WORK/fuzz_targets.txt" ./build_fuzz/bin/fuzz || true
 readarray -t FUZZ_TARGETS < "$WORK/fuzz_targets.txt" || FUZZ_TARGETS=()
 
@@ -388,6 +391,7 @@ if [ "$CUSTOM_LIBCPP" -eq 1 ] && [ -n "$CUSTOM_LIBCPP_LIB_PATH" ]; then
   done
 fi
 
+# Bad build checks re-run the packaged binary in that minimal sandbox; ship the symbolizer beside it.
 cp -a "$EXPECTED_SYMBOLIZER" "$OUT/"
 
 if [ -d assets/fuzz_dicts ]; then
