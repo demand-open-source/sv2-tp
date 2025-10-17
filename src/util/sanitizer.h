@@ -28,12 +28,20 @@ inline void UnpoisonCString(const char* value)
 #endif
 }
 
+template <typename T>
+inline void Unpoison(const T& value)
+{
+#if defined(BITCOIN_HAVE_MEMORY_SANITIZER)
+    __msan_unpoison(const_cast<void*>(static_cast<const void*>(&value)), sizeof(T));
+#else
+    (void)value;
+#endif
+}
+
 inline const char* GetEnvUnpoisoned(const char* name)
 {
     const char* value{std::getenv(name)};
-#if defined(BITCOIN_HAVE_MEMORY_SANITIZER)
-    __msan_unpoison(&value, sizeof(value));
-#endif
+    Unpoison(value);
     UnpoisonCString(value);
     return value;
 }

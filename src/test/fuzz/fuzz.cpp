@@ -54,6 +54,7 @@ const TranslateFn G_TRANSLATION_FUN{nullptr};
 
 using util::sanitizer::GetEnvUnpoisoned;
 using util::sanitizer::UnpoisonCString;
+using util::sanitizer::Unpoison;
 
 // The instrumented toolchain we ship to ClusterFuzzLite runners lacks the MSan
 // interceptors that unpoison getenv() results, so avoid logging those strings.
@@ -98,6 +99,7 @@ static void MaybeConfigureSymbolizer(const char* argv0)
     if (GetEnvUnpoisoned("LLVM_SYMBOLIZER_PATH") != nullptr) return;
 
     try {
+        Unpoison(argv0);
         UnpoisonCString(argv0);
         fs::path exe_path{argv0};
         if (exe_path.empty()) return;
@@ -127,6 +129,7 @@ static std::vector<const char*> g_args;
 
 static void SetArgs(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
+        Unpoison(argv[i]);
         UnpoisonCString(argv[i]);
         // Only take into account arguments that start with `--`. The others are for the fuzz engine:
         // `fuzz -runs=1 fuzz_corpora/address_deserialize_v2 --checkaddrman=5`
