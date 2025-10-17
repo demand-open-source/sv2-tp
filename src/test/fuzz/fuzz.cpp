@@ -139,13 +139,7 @@ static void MaybeConfigureSymbolizer(const char* argv0)
                 UnpoisonPath(discovered);
                 exe_path = std::move(discovered);
                 UnpoisonPath(exe_path);
-                if (!exe_path.empty()) {
-                    fs::path normalized{exe_path.lexically_normal()};
-                    UnpoisonPath(normalized);
-                    exe_path = std::move(normalized);
-                    UnpoisonPath(exe_path);
-                    have_exe_path = exe_path.is_absolute();
-                }
+                have_exe_path = exe_path.is_absolute();
             }
         }
 #endif
