@@ -133,11 +133,10 @@ static void MaybeConfigureSymbolizer(const char* argv0)
             if (!candidate.is_absolute()) {
                 fs::path resolved{fs::current_path()};
                 resolved /= candidate;
-                candidate = resolved.lexically_normal();
+                exe_path = std::move(resolved);
             } else {
-                candidate = candidate.lexically_normal();
+                exe_path = std::move(candidate);
             }
-            exe_path = std::move(candidate);
             have_exe_path = exe_path.is_absolute();
         }
 
