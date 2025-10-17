@@ -31,6 +31,9 @@ inline void UnpoisonCString(const char* value)
 inline const char* GetEnvUnpoisoned(const char* name)
 {
     const char* value{std::getenv(name)};
+#if defined(BITCOIN_HAVE_MEMORY_SANITIZER)
+    __msan_unpoison(&value, sizeof(value));
+#endif
     UnpoisonCString(value);
     return value;
 }
