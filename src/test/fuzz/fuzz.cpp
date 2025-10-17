@@ -62,12 +62,25 @@ using util::sanitizer::GetEnvUnpoisoned;
 using util::sanitizer::Unpoison;
 using util::sanitizer::UnpoisonArray;
 using util::sanitizer::UnpoisonCString;
+using util::sanitizer::UnpoisonMemory;
 
 // The instrumented toolchain we ship to ClusterFuzzLite runners lacks the MSan
 // interceptors that unpoison getenv() results, so avoid logging those strings.
 static bool RunningUnderClusterFuzzLite()
 {
     return GetEnvUnpoisoned("SV2_CLUSTERFUZZLITE") != nullptr;
+}
+
+static void UnpoisonPath(fs::path& path)
+{
+    Unpoison(path);
+#ifdef MEMORY_SANITIZER
+    const auto& native{path.native()};
+    const auto count{native.size() + 1};
+    if (count != 0) {
+        UnpoisonMemory(native.c_str(), count * sizeof(fs::path::value_type));
+    }
+#endif
 }
 
 static void EnsureMsanExternalSymbolizer(const std::string& symbolizer_path)
@@ -117,14 +130,14 @@ static void MaybeConfigureSymbolizer(const char* argv0)
                 proc_exe[static_cast<std::size_t>(read_bytes)] = '\0';
                 UnpoisonArray(proc_exe.data(), proc_exe.size());
                 fs::path discovered{proc_exe.data()};
-                Unpoison(discovered);
+                UnpoisonPath(discovered);
                 exe_path = std::move(discovered);
-                Unpoison(exe_path);
+                UnpoisonPath(exe_path);
                 if (!exe_path.empty()) {
                     fs::path normalized{exe_path.lexically_normal()};
-                    Unpoison(normalized);
+                    UnpoisonPath(normalized);
                     exe_path = std::move(normalized);
-                    Unpoison(exe_path);
+                    UnpoisonPath(exe_path);
                     have_exe_path = exe_path.is_absolute();
                 }
             }
@@ -136,23 +149,25 @@ static void MaybeConfigureSymbolizer(const char* argv0)
             Unpoison(argv0);
             UnpoisonCString(argv0);
             fs::path candidate{argv0};
-            Unpoison(candidate);
+            UnpoisonPath(candidate);
             if (candidate.empty()) return;
             if (!candidate.is_absolute()) {
                 fs::path resolved{fs::current_path()};
-                Unpoison(resolved);
+                UnpoisonPath(resolved);
                 resolved /= candidate;
-                Unpoison(resolved);
+                UnpoisonPath(resolved);
                 exe_path = std::move(resolved);
             } else {
                 exe_path = std::move(candidate);
             }
-            Unpoison(exe_path);
+            UnpoisonPath(exe_path);
             have_exe_path = exe_path.is_absolute();
         }
 
         fs::path symbolizer_path{exe_path.parent_path()};
+        UnpoisonPath(symbolizer_path);
         symbolizer_path /= "llvm-symbolizer";
+        UnpoisonPath(symbolizer_path);
         if (!fs::exists(symbolizer_path) || !fs::is_regular_file(symbolizer_path)) return;
 
         ExportSymbolizerEnv(symbolizer_path);
