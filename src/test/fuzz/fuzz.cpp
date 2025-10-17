@@ -62,7 +62,6 @@ using util::sanitizer::GetEnvUnpoisoned;
 using util::sanitizer::Unpoison;
 using util::sanitizer::UnpoisonArray;
 using util::sanitizer::UnpoisonCString;
-using util::sanitizer::UnpoisonMemory;
 
 // The instrumented toolchain we ship to ClusterFuzzLite runners lacks the MSan
 // interceptors that unpoison getenv() results, so avoid logging those strings.
