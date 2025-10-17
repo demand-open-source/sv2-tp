@@ -99,9 +99,8 @@ static void EnsureMsanExternalSymbolizer(const std::string& symbolizer_path)
     setenv("MSAN_OPTIONS", new_opts.c_str(), 1);
 }
 
-static void ExportSymbolizerEnv(const fs::path& symbolizer_path)
+static void ExportSymbolizerEnvFromUtf8(const std::string& sym)
 {
-    const std::string sym{fs::PathToString(symbolizer_path)};
     setenv("LLVM_SYMBOLIZER_PATH", sym.c_str(), 1);
     setenv("ASAN_SYMBOLIZER_PATH", sym.c_str(), 1);
     setenv("MSAN_SYMBOLIZER_PATH", sym.c_str(), 1);
@@ -109,6 +108,13 @@ static void ExportSymbolizerEnv(const fs::path& symbolizer_path)
 
     EnsureMsanExternalSymbolizer(sym);
 }
+
+#if defined(_WIN32)
+static void ExportSymbolizerEnv(const fs::path& symbolizer_path)
+{
+    ExportSymbolizerEnvFromUtf8(fs::PathToString(symbolizer_path));
+}
+#endif
 
 static void MaybeConfigureSymbolizer(const char* argv0)
 {
@@ -178,11 +184,18 @@ static void MaybeConfigureSymbolizer(const char* argv0)
         }
         symbolizer_string.append("llvm-symbolizer");
 
+#if !defined(_WIN32)
+        UnpoisonMemory(symbolizer_string.c_str(), symbolizer_string.size() + 1);
+        if (::access(symbolizer_string.c_str(), X_OK) != 0) return;
+
+        ExportSymbolizerEnvFromUtf8(symbolizer_string);
+#else
         fs::path symbolizer_path{fs::PathFromString(symbolizer_string)};
         UnpoisonPath(symbolizer_path);
         if (!fs::exists(symbolizer_path) || !fs::is_regular_file(symbolizer_path)) return;
 
         ExportSymbolizerEnv(symbolizer_path);
+#endif
     } catch (const fs::filesystem_error&) {
         // If we cannot discover the executable path, fall back to the caller-provided environment.
     }
