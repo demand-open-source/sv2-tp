@@ -105,17 +105,21 @@ static void LogMsanSymbolizerState(const char* context)
 static void LogMsanSymbolizerState(const char*) {}
 #endif
 
-// Allow bundle experiments to force a harness re-exec once the desired MSan
-// environment is in place. The SV2_REQUIRE_MSAN_SYMBOLIZER_REEXEC guard keeps
-// the logic opt-in so production fuzzing keeps the existing code path.
+// When ClusterFuzzLite bundles a harness, MSan caches its symbolizer path
+// before our overrides land in MSAN_OPTIONS. Re-exec once so the runtime
+// observes the updated environment before fuzzing proceeds.
 static void MaybeReexecForMsanSymbolizer(int argc, char** argv)
 {
 #if defined(MEMORY_SANITIZER) && defined(__linux__)
     if (!RunningUnderClusterFuzzLite()) return;
     if (argv == nullptr || argc <= 0 || argv[0] == nullptr) return;
 
-    const char* const require_reexec{GetEnvUnpoisoned("SV2_REQUIRE_MSAN_SYMBOLIZER_REEXEC")};
-    if (require_reexec == nullptr || require_reexec[0] == '\0') return;
+    // Allow ad-hoc debugging to keep the legacy single-process flow.
+    const char* const disable_reexec{GetEnvUnpoisoned("SV2_DISABLE_MSAN_SYMBOLIZER_REEXEC")};
+    if (disable_reexec != nullptr && disable_reexec[0] != '\0') return;
+
+    const char* const msan_options{GetEnvUnpoisoned("MSAN_OPTIONS")};
+    if (msan_options == nullptr || std::strstr(msan_options, "external_symbolizer_path=") == nullptr) return;
 
     const char* const already_reexecuted{GetEnvUnpoisoned("SV2_MSAN_SYMBOLIZER_REEXECUTED")};
     if (already_reexecuted != nullptr && already_reexecuted[0] != '\0') return;

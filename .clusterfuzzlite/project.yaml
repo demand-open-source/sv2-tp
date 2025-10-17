@@ -4,4 +4,3 @@ env:
   ASAN_SYMBOLIZER_PATH: /usr/local/bin/llvm-symbolizer
   MSAN_SYMBOLIZER_PATH: /usr/local/bin/llvm-symbolizer
   UBSAN_SYMBOLIZER_PATH: /usr/local/bin/llvm-symbolizer
-  SV2_REQUIRE_MSAN_SYMBOLIZER_REEXEC: "1"
