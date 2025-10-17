@@ -9,7 +9,6 @@
 
 #include <array>
 #include <cstdlib>
-#include <system_error>
 
 #if defined(__linux__)
 #include <unistd.h>
@@ -38,8 +37,7 @@ static bool BundleMarkerPresent()
 
     fs::path marker{exe_path.parent_path() / ".sv2-clusterfuzzlite"};
     UnpoisonPath(marker);
-    std::error_code ec;
-    return fs::exists(marker, ec);
+    return fs::exists(marker);
 }
 #endif // defined(__linux__)
 
