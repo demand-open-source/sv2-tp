@@ -58,6 +58,62 @@ static bool RunningUnderClusterFuzzLite()
     return std::getenv("SV2_CLUSTERFUZZLITE") != nullptr;
 }
 
+static void EnsureMsanExternalSymbolizer(const std::string& symbolizer_path)
+{
+    const char* existing{std::getenv("MSAN_OPTIONS")};
+#ifdef MEMORY_SANITIZER
+    if (existing != nullptr) {
+        __msan_unpoison_string(existing);
+    }
+#endif
+    if (existing != nullptr && std::strstr(existing, "external_symbolizer_path=") != nullptr) {
+        return;
+    }
+
+    std::string new_opts{"external_symbolizer_path="};
+    new_opts.append(symbolizer_path);
+    if (existing != nullptr && existing[0] != '\0') {
+        new_opts.push_back(':');
+        new_opts.append(existing);
+    }
+    setenv("MSAN_OPTIONS", new_opts.c_str(), 1);
+}
+
+static void ExportSymbolizerEnv(const fs::path& symbolizer_path)
+{
+    const std::string sym{fs::PathToString(symbolizer_path)};
+    setenv("LLVM_SYMBOLIZER_PATH", sym.c_str(), 1);
+    setenv("ASAN_SYMBOLIZER_PATH", sym.c_str(), 1);
+    setenv("MSAN_SYMBOLIZER_PATH", sym.c_str(), 1);
+    setenv("UBSAN_SYMBOLIZER_PATH", sym.c_str(), 1);
+
+    EnsureMsanExternalSymbolizer(sym);
+}
+
+static void MaybeConfigureSymbolizer(const char* argv0)
+{
+    // Currently only auto-configure when running under ClusterFuzzLite; other
+    // environments can export these variables themselves if desired.
+    if (!RunningUnderClusterFuzzLite()) return;
+    if (argv0 == nullptr) return;
+    if (std::getenv("LLVM_SYMBOLIZER_PATH") != nullptr) return;
+
+    try {
+        fs::path exe_path{argv0};
+        if (exe_path.empty()) return;
+        if (!exe_path.is_absolute()) {
+            exe_path = fs::weakly_canonical(fs::path{fs::current_path()} / exe_path);
+        }
+        fs::path symbolizer_path{exe_path.parent_path()};
+        symbolizer_path /= "llvm-symbolizer";
+        if (!fs::exists(symbolizer_path) || !fs::is_regular_file(symbolizer_path)) return;
+
+        ExportSymbolizerEnv(symbolizer_path);
+    } catch (const fs::filesystem_error&) {
+        // If we cannot discover the executable path, fall back to the caller-provided environment.
+    }
+}
+
 static constexpr char FuzzTargetPlaceholder[] = "d6f1a2b39c4e5d7a8b9c0d1e2f30415263748596a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff00fedcba9876543210a0b1c2d3";
 
 /**
@@ -264,6 +320,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 // This function is used by libFuzzer
 extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv)
 {
+    // Some environments call LLVMFuzzerInitialize with null argv pointers; guard before
+    // we try to derive the executable path for symbolizer discovery.
+    if (argv != nullptr && *argv != nullptr && (*argv)[0] != nullptr) {
+        MaybeConfigureSymbolizer((*argv)[0]);
+    }
     SetArgs(*argc, *argv);
     initialize();
     return 0;
@@ -272,6 +333,10 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv)
 #if defined(PROVIDE_FUZZ_MAIN_FUNCTION)
 int main(int argc, char** argv)
 {
+    // Standalone execution also defends against missing argv entries before probing paths.
+    if (argv != nullptr && argv[0] != nullptr) {
+        MaybeConfigureSymbolizer(argv[0]);
+    }
     initialize();
 #ifdef __AFL_LOOP
     // Enable AFL persistent mode. Requires compilation using afl-clang-fast++.
