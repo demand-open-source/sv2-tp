@@ -22,7 +22,9 @@ shift 2 || true
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 APT_VER="$(cfl_apt_llvm_version)"
 
-mkdir -p "${ROOT_DIR}/cxx_build" "${ROOT_DIR}/.cfl-base"
+mkdir -p "${ROOT_DIR}/cxx_build" "${ROOT_DIR}/.cfl-base" "${ROOT_DIR}/.cfl-ccache"
+
+CCACHE_DIR_IN_CONTAINER="${CCACHE_DIR:-/workspace/.cfl-ccache}"
 
 docker_common=(
   --rm
@@ -34,6 +36,15 @@ docker_common=(
   -v "${ROOT_DIR}/cxx_build:/cxx_build"
   -w /workspace
 )
+
+docker_common+=(
+  -v "${ROOT_DIR}/.cfl-ccache:${CCACHE_DIR_IN_CONTAINER}"
+  -e "CCACHE_DIR=${CCACHE_DIR_IN_CONTAINER}"
+)
+
+if [ -n "${CCACHE_MAXSIZE:-}" ]; then
+  docker_common+=(-e "CCACHE_MAXSIZE=${CCACHE_MAXSIZE}")
+fi
 
 # Ensure the base image is quietly available to avoid progress spam from implicit pulls.
 ensure_image_cached() {
