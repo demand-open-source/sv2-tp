@@ -53,8 +53,8 @@ extern const std::function<void(const std::string&)> G_TEST_LOG_FUN{};
 const TranslateFn G_TRANSLATION_FUN{nullptr};
 
 using util::sanitizer::GetEnvUnpoisoned;
-using util::sanitizer::UnpoisonCString;
 using util::sanitizer::Unpoison;
+using util::sanitizer::UnpoisonCString;
 
 // The instrumented toolchain we ship to ClusterFuzzLite runners lacks the MSan
 // interceptors that unpoison getenv() results, so avoid logging those strings.
@@ -128,6 +128,7 @@ static constexpr char FuzzTargetPlaceholder[] = "d6f1a2b39c4e5d7a8b9c0d1e2f30415
 static std::vector<const char*> g_args;
 
 static void SetArgs(int argc, char** argv) {
+    Unpoison(argv);
     for (int i = 1; i < argc; ++i) {
         Unpoison(argv[i]);
         UnpoisonCString(argv[i]);
@@ -326,6 +327,16 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 // This function is used by libFuzzer
 extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv)
 {
+    if (argc != nullptr) {
+        Unpoison(argc);
+        Unpoison(*argc);
+    }
+    if (argv != nullptr) {
+        Unpoison(argv);
+        if (*argv != nullptr) {
+            Unpoison(*argv);
+        }
+    }
     // Some environments call LLVMFuzzerInitialize with null argv pointers; guard before
     // we try to derive the executable path for symbolizer discovery.
     if (argv != nullptr && *argv != nullptr && (*argv)[0] != nullptr) {
@@ -339,6 +350,10 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv)
 #if defined(PROVIDE_FUZZ_MAIN_FUNCTION)
 int main(int argc, char** argv)
 {
+    Unpoison(&argc);
+    Unpoison(argc);
+    Unpoison(&argv);
+    Unpoison(argv);
     // Standalone execution also defends against missing argv entries before probing paths.
     if (argv != nullptr && argv[0] != nullptr) {
         MaybeConfigureSymbolizer(argv[0]);
