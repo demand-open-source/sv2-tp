@@ -151,6 +151,10 @@ static std::vector<const char*> g_args;
 static void SetArgs(int argc, char** argv) {
     if (argv == nullptr || argc <= 0) return;
     UnpoisonArray(argv, static_cast<std::size_t>(argc));
+    if (argv[0] != nullptr) {
+        Unpoison(argv[0]);
+        UnpoisonCString(argv[0]);
+    }
     for (int i = 1; i < argc; ++i) {
         if (argv[i] == nullptr) continue;
         Unpoison(argv[i]);
@@ -365,12 +369,13 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv)
         }
     }
 
+    SetArgs(arg_count, argv_values);
+
     // Some environments call LLVMFuzzerInitialize with null argv pointers; guard before
     // we try to derive the executable path for symbolizer discovery.
     if (argv_values != nullptr && arg_count > 0 && argv_values[0] != nullptr) {
         MaybeConfigureSymbolizer(argv_values[0]);
     }
-    SetArgs(arg_count, argv_values);
     initialize();
     return 0;
 }
@@ -383,6 +388,8 @@ int main(int argc, char** argv)
     }
     // Standalone execution also defends against missing argv entries before probing paths.
     if (argv != nullptr && argv[0] != nullptr) {
+        Unpoison(argv[0]);
+        UnpoisonCString(argv[0]);
         MaybeConfigureSymbolizer(argv[0]);
     }
     initialize();
