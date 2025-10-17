@@ -41,12 +41,14 @@ ensure_symbolizer_available() {
 
 SYMBOLIZER_DEPENDENCIES=()
 SYMBOLIZER_LDD_MISSING=0
+SYMBOLIZER_LOADER_BASENAME=""
 
 enumerate_symbolizer_dependencies() {
   local binary="$1"
 
   SYMBOLIZER_DEPENDENCIES=()
   SYMBOLIZER_LDD_MISSING=0
+  SYMBOLIZER_LOADER_BASENAME=""
 
   if [ ! -x "$binary" ]; then
     return 0
@@ -90,6 +92,15 @@ enumerate_symbolizer_dependencies() {
     fi
 
     SYMBOLIZER_DEPENDENCIES+=("$candidate")
+    if [ -z "$SYMBOLIZER_LOADER_BASENAME" ]; then
+      local base
+      base="$(basename "$candidate")"
+      case "$base" in
+        ld-*.so*)
+          SYMBOLIZER_LOADER_BASENAME="$base"
+          ;;
+      esac
+    fi
   done < <(ldd "$binary" 2>/dev/null || true)
 
   return 0
@@ -113,8 +124,9 @@ copy_symbolizer_dependencies() {
 }
 
 verify_symbolizer_bundle() {
-  local dest_dir="$1"
-  local suffix="${2:-}"
+  local binary_real_path="$1"
+  local dest_dir="$2"
+  local suffix="${3:-}"
   local missing=0
 
   if [ "${SYMBOLIZER_LDD_MISSING:-0}" -ne 0 ]; then
@@ -134,6 +146,11 @@ verify_symbolizer_bundle() {
     return 1
   fi
 
+  if ! LD_LIBRARY_PATH="$dest_dir" ldd "$binary_real_path" >/dev/null 2>&1; then
+    echo "Bundled llvm-symbolizer ldd probe failed${suffix}" >&2
+    return 1
+  fi
+
   return 0
 }
 
@@ -150,7 +167,9 @@ bundle_symbolizer() {
 
   enumerate_symbolizer_dependencies "$symbolizer_realpath"
 
-  cp -p "$symbolizer_realpath" "$dest_dir/"
+  local symbolizer_real_copy
+  symbolizer_real_copy="$dest_dir/${symbolizer_basename}.real"
+  cp -p "$symbolizer_realpath" "$symbolizer_real_copy"
   copy_symbolizer_dependencies "$dest_dir"
 
   local suffix=""
@@ -158,14 +177,35 @@ bundle_symbolizer() {
     suffix=" ($context_label)"
   fi
 
-  if ! verify_symbolizer_bundle "$dest_dir" "$suffix"; then
-    (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./$symbolizer_basename" >&2) || true
+  local wrapper_created=0
+  local symbolizer_exec_path="$dest_dir/$symbolizer_basename"
+  if [ -n "$SYMBOLIZER_LOADER_BASENAME" ] && [ -e "$dest_dir/$SYMBOLIZER_LOADER_BASENAME" ]; then
+    cp ./.clusterfuzzlite/llvm-symbolizer-wrapper.sh "$symbolizer_exec_path"
+    sed -i "s|__CFL_LOADER__|$SYMBOLIZER_LOADER_BASENAME|g" "$symbolizer_exec_path"
+    sed -i "s|__CFL_SYMBOLIZER_REAL__|${symbolizer_basename}.real|g" "$symbolizer_exec_path"
+    chmod +x "$symbolizer_exec_path"
+    wrapper_created=1
+  else
+    mv "$symbolizer_real_copy" "$symbolizer_exec_path"
+    symbolizer_real_copy="$symbolizer_exec_path"
+  fi
+
+  if ! verify_symbolizer_bundle "$symbolizer_real_copy" "$dest_dir" "$suffix"; then
+    if [ "$wrapper_created" -eq 1 ]; then
+      (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./${symbolizer_basename}.real" >&2) || true
+    else
+      (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./$symbolizer_basename" >&2) || true
+    fi
     return 1
   fi
 
-  if ! (cd "$dest_dir" && env -i LD_LIBRARY_PATH="$dest_dir" "./$symbolizer_basename" --version >/dev/null 2>&1); then
+  if ! (cd "$dest_dir" && env -i LD_LIBRARY_PATH="$dest_dir" "$symbolizer_exec_path" --version >/dev/null 2>&1); then
     echo "Bundled llvm-symbolizer self-test failed${suffix}" >&2
-    (cd "$dest_dir" && ldd "./$symbolizer_basename" >&2) || true
+    if [ "$wrapper_created" -eq 1 ]; then
+      (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./${symbolizer_basename}.real" >&2) || true
+    else
+      (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./$symbolizer_basename" >&2) || true
+    fi
     return 1
   fi
 
