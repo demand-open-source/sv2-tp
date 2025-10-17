@@ -22,6 +22,7 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -138,9 +139,17 @@ static bool TryExportSymbolizerFromUtf8(std::string& symbolizer_utf8)
 {
     if (symbolizer_utf8.empty()) return false;
     UnpoisonMemory(symbolizer_utf8.c_str(), symbolizer_utf8.size() + 1);
-    if (::access(symbolizer_utf8.c_str(), X_OK) != 0) return false;
+    if (::access(symbolizer_utf8.c_str(), X_OK) != 0) {
+        if (RunningUnderClusterFuzzLite()) {
+            std::fprintf(stderr, "[cfl] llvm-symbolizer candidate '%s' not usable: %s\n", symbolizer_utf8.c_str(), std::strerror(errno));
+        }
+        return false;
+    }
 
     ExportSymbolizerEnvFromUtf8(symbolizer_utf8);
+    if (RunningUnderClusterFuzzLite()) {
+        std::fprintf(stderr, "[cfl] configured llvm-symbolizer at '%s'\n", symbolizer_utf8.c_str());
+    }
     return true;
 }
 #else
@@ -196,7 +205,12 @@ static void MaybeConfigureSymbolizer(const char* argv0)
 #endif
 
         if (!have_exe_path) {
-            if (argv0 == nullptr) return;
+            if (argv0 == nullptr) {
+                if (RunningUnderClusterFuzzLite()) {
+                    std::fprintf(stderr, "[cfl] Unable to discover executable path (argv0 missing).\n");
+                }
+                return;
+            }
             Unpoison(argv0);
             UnpoisonCString(argv0);
             fs::path candidate{argv0};
@@ -229,7 +243,12 @@ static void MaybeConfigureSymbolizer(const char* argv0)
         }
         symbolizer_string.append("llvm-symbolizer");
 
-        if (!TryExportSymbolizerFromUtf8(symbolizer_string)) return;
+        if (!TryExportSymbolizerFromUtf8(symbolizer_string)) {
+            if (RunningUnderClusterFuzzLite()) {
+                std::fprintf(stderr, "[cfl] Failed to configure llvm-symbolizer relative to '%s'.\n", exe_string.c_str());
+            }
+            return;
+        }
     } catch (const fs::filesystem_error&) {
         // If we cannot discover the executable path, fall back to the caller-provided environment.
     }
