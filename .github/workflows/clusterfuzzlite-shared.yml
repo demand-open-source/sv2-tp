@@ -49,6 +49,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Restore LLVM toolchain cache (${{ matrix.sanitizer }})
+        id: llvm-toolchain-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .cfl-base
+            cxx_build
+          key: ${{ format('cfl-llvm-{0}-{1}-{2}', runner.os, matrix.sanitizer, hashFiles('ci/test/build-instrumented-llvm.sh', 'ci/test/run-cfl-helper.sh', 'ci/test/cfl-common.sh')) }}
+          restore-keys: |
+            ${{ format('cfl-llvm-{0}-{1}-', runner.os, matrix.sanitizer) }}
+
       - name: ClusterFuzzLite base install (${{ matrix.sanitizer }})
         if: ${{ inputs.run_base_install }}
         run: ./ci/test/run-cfl-helper.sh base-install "${{ matrix.sanitizer }}"
@@ -58,6 +69,15 @@ jobs:
         if: ${{ inputs.run_toolchain }}
         run: ./ci/test/run-cfl-helper.sh build-toolchain "${{ matrix.sanitizer }}"
         shell: bash
+
+      - name: Save LLVM toolchain cache (${{ matrix.sanitizer }})
+        if: ${{ always() && (inputs.run_toolchain || inputs.run_base_install) && steps.llvm-toolchain-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .cfl-base
+            cxx_build
+          key: ${{ steps.llvm-toolchain-cache.outputs.cache-primary-key }}
 
       - name: Build fuzzers (${{ matrix.sanitizer }})
         uses: google/clusterfuzzlite/actions/build_fuzzers@v1
