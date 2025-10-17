@@ -114,6 +114,10 @@ static void EnsureMsanExternalSymbolizer(const std::string& symbolizer_path)
         }
     }
     setenv("MSAN_OPTIONS", new_opts.c_str(), 1);
+
+    if (RunningUnderClusterFuzzLite()) {
+        std::fprintf(stderr, "[cfl] MSAN_OPTIONS now '%s'\n", new_opts.c_str());
+    }
 }
 
 static void ExportSymbolizerEnvFromUtf8(const std::string& sym)
