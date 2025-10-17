@@ -7,8 +7,6 @@ RUN apt-get update && apt-get install -y \
   ninja-build \
   pkgconf \
   python3 \
-  libcapnp-dev \
-  capnproto \
   zip \
   && rm -rf /var/lib/apt/lists/*
 
