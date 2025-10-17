@@ -6,6 +6,43 @@ SYMBOLIZER_DEPENDENCIES=()
 SYMBOLIZER_LDD_MISSING=0
 SYMBOLIZER_LOADER_BASENAME=""
 
+ensure_loader_shadow_paths() {
+  local dest_dir="$1"
+
+  if [ -z "$SYMBOLIZER_LOADER_BASENAME" ]; then
+    return 0
+  fi
+
+  local loader_path="$dest_dir/$SYMBOLIZER_LOADER_BASENAME"
+  if [ ! -e "$loader_path" ]; then
+    return 0
+  fi
+
+  local shadow_dir rel_target link_path
+  for shadow_dir in "lib64" "lib/x86_64-linux-gnu"; do
+    case "$shadow_dir" in
+      lib64)
+        rel_target="../$SYMBOLIZER_LOADER_BASENAME"
+        ;;
+      lib/x86_64-linux-gnu)
+        rel_target="../../$SYMBOLIZER_LOADER_BASENAME"
+        ;;
+      *)
+        continue
+        ;;
+    esac
+
+    link_path="$dest_dir/$shadow_dir/$SYMBOLIZER_LOADER_BASENAME"
+    if [ -e "$link_path" ] || [ -L "$link_path" ]; then
+      continue
+    fi
+
+    mkdir -p "$(dirname "$link_path")"
+    ln -s "$rel_target" "$link_path"
+    echo "Bundled loader symlink $link_path -> $rel_target" >&2
+  done
+}
+
 ensure_symbolizer_available() {
   if ls "$EXPECTED_SYMBOLIZER" >/dev/null 2>&1; then
     echo "llvm-symbolizer found at $EXPECTED_SYMBOLIZER" >&2
@@ -189,6 +226,7 @@ bundle_symbolizer() {
     fi
 
     wrapper_created=1
+    ensure_loader_shadow_paths "$dest_dir"
   else
     mv "$symbolizer_real_copy" "$symbolizer_exec_path"
     symbolizer_real_copy="$symbolizer_exec_path"
