@@ -86,15 +86,35 @@ static void UnpoisonPath(fs::path& path)
 static void EnsureMsanExternalSymbolizer(const std::string& symbolizer_path)
 {
     const char* existing{GetEnvUnpoisoned("MSAN_OPTIONS")};
-    if (existing != nullptr && std::strstr(existing, "external_symbolizer_path=") != nullptr) {
-        return;
-    }
+    // Always override so packaged harnesses don't inherit stale ClusterFuzzLite paths.
 
     std::string new_opts{"external_symbolizer_path="};
     new_opts.append(symbolizer_path);
     if (existing != nullptr && existing[0] != '\0') {
-        new_opts.push_back(':');
-        new_opts.append(existing);
+        const char* cursor{existing};
+        bool appended_extra{false};
+        while (true) {
+            const char* const sep{std::strchr(cursor, ':')};
+            std::string token;
+            if (sep != nullptr) {
+                token.assign(cursor, static_cast<std::size_t>(sep - cursor));
+            } else {
+                token.assign(cursor);
+            }
+            if (!token.empty() && token.rfind("external_symbolizer_path=", 0) != 0) {
+                if (!appended_extra) {
+                    new_opts.push_back(':');
+                    appended_extra = true;
+                } else {
+                    new_opts.push_back(':');
+                }
+                new_opts.append(token);
+            }
+            if (sep == nullptr) {
+                break;
+            }
+            cursor = sep + 1;
+        }
     }
     setenv("MSAN_OPTIONS", new_opts.c_str(), 1);
 }
