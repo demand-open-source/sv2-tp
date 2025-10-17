@@ -17,6 +17,7 @@
 #include <util/translation.h>
 
 #include <algorithm>
+#include <array>
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
@@ -34,6 +35,10 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+
+#if defined(__linux__)
+#include <unistd.h>
+#endif
 
 #if defined(__has_feature)
 #if __has_feature(memory_sanitizer)
@@ -106,10 +111,12 @@ static void MaybeConfigureSymbolizer(const char* argv0)
 
 #if defined(__linux__)
         {
-            std::error_code proc_ec;
-            fs::path proc_exe{fs::read_symlink("/proc/self/exe", proc_ec)};
-            if (!proc_ec && !proc_exe.empty()) {
-                exe_path = fs::weakly_canonical(proc_exe);
+            constexpr std::size_t PROC_SELF_EXE_BUF_SZ{4096};
+            std::array<char, PROC_SELF_EXE_BUF_SZ> proc_exe{};
+            const ssize_t read_bytes{::readlink("/proc/self/exe", proc_exe.data(), proc_exe.size() - 1)};
+            if (read_bytes > 0 && static_cast<std::size_t>(read_bytes) < proc_exe.size()) {
+                proc_exe[static_cast<std::size_t>(read_bytes)] = '\0';
+                exe_path = fs::weakly_canonical(fs::path{proc_exe.data()});
                 have_exe_path = !exe_path.empty();
             }
         }
