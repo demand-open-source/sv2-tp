@@ -85,6 +85,61 @@ copy_symbolizer_dependencies() {
   done < <(ldd "$binary" 2>/dev/null || true)
 }
 
+verify_symbolizer_bundle() {
+  local binary_path="$1"
+  local dest_dir="$2"
+  local suffix="${3:-}"
+  local missing=0
+
+  while IFS= read -r line; do
+    line="${line#${line%%[![:space:]]*}}"
+    [ -n "$line" ] || continue
+
+    case "$line" in
+      *"not found"*)
+        echo "Bundled llvm-symbolizer dependency missing${suffix}: $line" >&2
+        missing=1
+        continue
+        ;;
+    esac
+
+    local candidate=""
+    case "$line" in
+      linux-vdso.so.*)
+        continue
+        ;;
+      *"=>"*)
+        candidate="${line#*=> }"
+        candidate="${candidate%% *}"
+        ;;
+      /*)
+        candidate="${line%% *}"
+        ;;
+    esac
+
+    if [ -z "$candidate" ]; then
+      continue
+    fi
+
+    if [ ! -e "$candidate" ]; then
+      continue
+    fi
+
+    local base
+    base="$(basename "$candidate")"
+    if [ ! -e "$dest_dir/$base" ]; then
+      echo "Bundled llvm-symbolizer missing copied library${suffix}: $base" >&2
+      missing=1
+    fi
+  done < <(LD_LIBRARY_PATH="$dest_dir" ldd "$binary_path" 2>/dev/null || true)
+
+  if [ "$missing" -ne 0 ]; then
+    return 1
+  fi
+
+  return 0
+}
+
 bundle_symbolizer() {
   local dest_dir="$1"
   local context_label="${2:-}"
@@ -102,6 +157,11 @@ bundle_symbolizer() {
   local suffix=""
   if [ -n "$context_label" ]; then
     suffix=" ($context_label)"
+  fi
+
+  if ! verify_symbolizer_bundle "$dest_dir/$symbolizer_basename" "$dest_dir" "$suffix"; then
+    (cd "$dest_dir" && ldd "./$symbolizer_basename" >&2) || true
+    return 1
   fi
 
   if ! (cd "$dest_dir" && env -i LD_LIBRARY_PATH="$dest_dir" "./$symbolizer_basename" --version >/dev/null 2>&1); then
