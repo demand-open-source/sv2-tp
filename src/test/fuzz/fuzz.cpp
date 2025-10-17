@@ -116,8 +116,10 @@ static void MaybeConfigureSymbolizer(const char* argv0)
             if (read_bytes > 0 && static_cast<std::size_t>(read_bytes) < proc_exe.size()) {
                 proc_exe[static_cast<std::size_t>(read_bytes)] = '\0';
                 exe_path = fs::path{proc_exe.data()};
+                Unpoison(exe_path);
                 if (!exe_path.empty()) {
                     exe_path = exe_path.lexically_normal();
+                    Unpoison(exe_path);
                     have_exe_path = exe_path.is_absolute();
                 }
             }
@@ -129,14 +131,18 @@ static void MaybeConfigureSymbolizer(const char* argv0)
             Unpoison(argv0);
             UnpoisonCString(argv0);
             fs::path candidate{argv0};
+            Unpoison(candidate);
             if (candidate.empty()) return;
             if (!candidate.is_absolute()) {
                 fs::path resolved{fs::current_path()};
+                Unpoison(resolved);
                 resolved /= candidate;
+                Unpoison(resolved);
                 exe_path = std::move(resolved);
             } else {
                 exe_path = std::move(candidate);
             }
+            Unpoison(exe_path);
             have_exe_path = exe_path.is_absolute();
         }
 
