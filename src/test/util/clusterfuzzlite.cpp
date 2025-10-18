@@ -144,8 +144,7 @@ static void MaybeReexecForMsanSymbolizer(int argc, char** argv)
         std::fprintf(stderr, "[cfl] re-exec requested; attempting execve('%s')\n", argv[0]);
     }
 
-    extern char** environ;
-    if (execve(argv[0], argv, environ) != 0) {
+    if (execve(argv[0], argv, ::environ) != 0) {
         if (running_cfl) {
             std::fprintf(stderr, "[cfl] execve failed: %s\n", std::strerror(errno));
         }
