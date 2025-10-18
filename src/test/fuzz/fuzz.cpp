@@ -70,18 +70,6 @@ using util::sanitizer::UnpoisonArray;
 using util::sanitizer::UnpoisonCString;
 using util::sanitizer::UnpoisonMemory;
 
-static void UnpoisonPath(fs::path& path)
-{
-    Unpoison(path);
-#ifdef MEMORY_SANITIZER
-    const auto& native{path.native()};
-    const auto count{native.size() + 1};
-    if (count != 0) {
-        UnpoisonMemory(native.c_str(), count * sizeof(fs::path::value_type));
-    }
-#endif
-}
-
 static void MaybeConfigureSymbolizer(int argc, char** argv)
 {
     EnsureClusterFuzzLiteMsanSymbolizer(argc, argv);
