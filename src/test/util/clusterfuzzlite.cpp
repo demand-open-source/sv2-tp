@@ -24,17 +24,20 @@
 extern char** environ;
 #endif
 
-using util::sanitizer::GetEnvUnpoisoned;
-using util::sanitizer::Unpoison;
-using util::sanitizer::UnpoisonArray;
-using util::sanitizer::UnpoisonCString;
-using util::sanitizer::UnpoisonMemory;
-using util::sanitizer::UnpoisonPath;
-
 #if defined(__has_feature)
 #if __has_feature(memory_sanitizer)
 #define CLUSTERFUZZLITE_HAVE_MSAN 1
 #endif
+#endif
+
+using util::sanitizer::GetEnvUnpoisoned;
+using util::sanitizer::UnpoisonArray;
+using util::sanitizer::UnpoisonPath;
+
+#ifdef CLUSTERFUZZLITE_HAVE_MSAN
+using util::sanitizer::Unpoison;
+using util::sanitizer::UnpoisonCString;
+using util::sanitizer::UnpoisonMemory;
 #endif
 
 #ifdef CLUSTERFUZZLITE_HAVE_MSAN
