@@ -26,8 +26,8 @@
 extern char **environ;
 
 /*
- * ClusterFuzzLite runs binaries from a self-contained bundle that ships its
- * own loader and llvm-symbolizer. This wrapper locates the bundle relative to
+ * ClusterFuzzLite runs binaries from a self-contained bundle for which we ship
+ * our own loader and llvm-symbolizer. This wrapper locates the bundle relative to
  * the executable, injects the bundled loader via --library-path, and tail-calls
  * into the real symbolizer so that sanitizer reports resolve without relying
  * on host tooling.
