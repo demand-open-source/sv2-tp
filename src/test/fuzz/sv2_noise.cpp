@@ -14,8 +14,6 @@
 #include <string_view>
 #include <cstddef>
 
-#include <cstdlib>
-
 #include <cstdint>
 #include <util/vector.h>
 

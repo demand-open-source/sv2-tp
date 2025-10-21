@@ -4,14 +4,14 @@
 
 #include <test/sv2_test_setup.h>
 
-#include <array>
 #include <chainparamsbase.h>
 #include <common/args.h>
 #include <key.h>
-#include <string>
 #include <util/chaintype.h>
 #include <util/string.h>
 #include <util/time.h>
+#include <array>
+#include <string>
 
 Sv2BasicTestingSetup::Sv2BasicTestingSetup()
 {
