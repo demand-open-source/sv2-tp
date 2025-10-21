@@ -19,7 +19,7 @@ CUSTOM_LIBCPP=0
 INSTRUMENTED_LIBCPP_MODE=""
 SKIP_CFL_SETUP_FLAG="${SKIP_CFL_SETUP:-false}"
 EXPECTED_SYMBOLIZER="${LLVM_SYMBOLIZER_PATH:-/usr/local/bin/llvm-symbolizer}"
-DISABLE_CUSTOM_LIBCPP="${CFL_DISABLE_CUSTOM_LIBCPP:-false}"
+DISABLE_CUSTOM_LIBCPP="${CFL_DISABLE_CUSTOM_LIBCPP:-true}"
 
 # shellcheck source=ci/test/cfl-common.sh
 source ./ci/test/cfl-common.sh
@@ -98,7 +98,7 @@ log_cfl_toolchain_artifacts() {
 INSTRUMENTED_LIBCPP_MODE="$(cfl_instrumented_mode "$SANITIZER_CHOICE")"
 if [ "$DISABLE_CUSTOM_LIBCPP" = "true" ]; then
   if [ -n "$INSTRUMENTED_LIBCPP_MODE" ]; then
-    echo "[cfl] Skipping custom libc++ runtime build (CFL_DISABLE_CUSTOM_LIBCPP=true)." >&2
+    echo "[cfl] Skipping custom libc++ runtime build (CFL_DISABLE_CUSTOM_LIBCPP=${DISABLE_CUSTOM_LIBCPP})." >&2
   fi
   CUSTOM_LIBCPP=0
   INSTRUMENTED_LIBCPP_MODE=""
