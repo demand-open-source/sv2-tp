@@ -15,28 +15,13 @@ export BASE_ROOT_DIR
 export CI_RETRY_EXE="${CI_RETRY_EXE:-bash ./ci/retry/retry --}"
 export APT_LLVM_V="${APT_LLVM_V:-21}"
 SANITIZER_CHOICE="${SANITIZER:-address}"
-CUSTOM_LIBCPP=0
-INSTRUMENTED_LIBCPP_MODE=""
 SKIP_CFL_SETUP_FLAG="${SKIP_CFL_SETUP:-false}"
 EXPECTED_SYMBOLIZER="${LLVM_SYMBOLIZER_PATH:-/usr/local/bin/llvm-symbolizer}"
-DISABLE_CUSTOM_LIBCPP="${CFL_DISABLE_CUSTOM_LIBCPP:-true}"
 
 # shellcheck source=ci/test/cfl-common.sh
 source ./ci/test/cfl-common.sh
 # shellcheck source=.clusterfuzzlite/symbolizer.sh
 source ./.clusterfuzzlite/symbolizer.sh
-
-bootstrap_instrumented_llvm() {
-  local mode="$1"
-  local sanitizer="$2"
-
-  if [ -z "$mode" ]; then
-    return
-  fi
-
-  export USE_INSTRUMENTED_LIBCPP="$mode"
-  ./ci/test/build-instrumented-llvm.sh "$sanitizer"
-}
 
 log_cfl_toolchain_artifacts() {
   local cxx_bin="${CXX:-clang++}"
@@ -95,78 +80,11 @@ log_cfl_toolchain_artifacts() {
   fi
 }
 
-INSTRUMENTED_LIBCPP_MODE="$(cfl_instrumented_mode "$SANITIZER_CHOICE")"
-if [ "$DISABLE_CUSTOM_LIBCPP" = "true" ]; then
-  if [ -n "$INSTRUMENTED_LIBCPP_MODE" ]; then
-    echo "[cfl] Skipping custom libc++ runtime build (CFL_DISABLE_CUSTOM_LIBCPP=${DISABLE_CUSTOM_LIBCPP})." >&2
-  fi
-  CUSTOM_LIBCPP=0
-  INSTRUMENTED_LIBCPP_MODE=""
-  unset USE_INSTRUMENTED_LIBCPP
-else
-  if [ -n "$INSTRUMENTED_LIBCPP_MODE" ]; then
-    CUSTOM_LIBCPP=1
-    export USE_INSTRUMENTED_LIBCPP="$INSTRUMENTED_LIBCPP_MODE"
-  else
-    unset USE_INSTRUMENTED_LIBCPP
-  fi
-fi
-
 if [ -z "${PACKAGES:-}" ]; then
   packages_value="$(cfl_packages_for_sanitizer "$SANITIZER_CHOICE")"
   export PACKAGES="$packages_value"
 else
   export PACKAGES
-fi
-
-if [ "$CUSTOM_LIBCPP" -eq 1 ]; then
-  INSTRUMENTED_LIBCPP_MODE="${USE_INSTRUMENTED_LIBCPP:-}"
-  TOOLCHAIN_STAMP_DIR="${CFL_TOOLCHAIN_STAMP_DIR:-/cxx_build}"
-  TOOLCHAIN_STAMP="${TOOLCHAIN_STAMP_DIR}/ci.build-instrumented-llvm-${INSTRUMENTED_LIBCPP_MODE}"
-  TOOLCHAIN_STAMP_BASENAME="$(basename "$TOOLCHAIN_STAMP")"
-  # Allow callers to force a specific cache mount; otherwise probe the common
-  # host locations used by our helper containers and the GitHub Action.
-  HOST_TOOLCHAIN_DIR="${CFL_HOST_TOOLCHAIN_DIR:-}"
-
-  if [ -z "$HOST_TOOLCHAIN_DIR" ]; then
-    BASE_PARENT_DIR="$(dirname "${BASE_ROOT_DIR%/}")"
-    CANDIDATE_DIRS=()
-
-    if [ -n "$BASE_PARENT_DIR" ]; then
-      CANDIDATE_DIRS+=("${BASE_PARENT_DIR%/}/cxx_build")
-    fi
-    if [ -n "${GITHUB_WORKSPACE:-}" ]; then
-      CANDIDATE_DIRS+=("${GITHUB_WORKSPACE%/}/cxx_build")
-    fi
-    if [ -n "${PROJECT_SRC_PATH:-}" ]; then
-      CANDIDATE_DIRS+=("${PROJECT_SRC_PATH%/}/cxx_build")
-    fi
-
-    CANDIDATE_DIRS+=(
-      "/workspace/cxx_build"
-      "/github/workspace/cxx_build"
-      "/github/workspace/storage/sv2-tp/cxx_build"
-    )
-
-    for candidate in "${CANDIDATE_DIRS[@]}"; do
-      [ -n "$candidate" ] || continue
-      if [ -d "$candidate" ] || [ -f "${candidate}/${TOOLCHAIN_STAMP_BASENAME}" ]; then
-        HOST_TOOLCHAIN_DIR="$candidate"
-        break
-      fi
-    done
-  fi
-
-  if [ -n "$HOST_TOOLCHAIN_DIR" ] \
-    && [ -d "$HOST_TOOLCHAIN_DIR" ] \
-    && [ -f "${HOST_TOOLCHAIN_DIR}/${TOOLCHAIN_STAMP_BASENAME}" ] \
-    && [ ! -f "$TOOLCHAIN_STAMP" ]; then
-    mkdir -p "$TOOLCHAIN_STAMP_DIR"
-    cp -a "${HOST_TOOLCHAIN_DIR}/." "$TOOLCHAIN_STAMP_DIR/"
-  fi
-
-  export SKIP_LIBCPP_RUNTIME_BUILD=1
-  unset USE_INSTRUMENTED_LIBCPP || true
 fi
 
 if [ "$SKIP_CFL_SETUP_FLAG" = "true" ] && [ -f "${BASE_ROOT_DIR}/ci.base-install-done" ]; then
@@ -196,229 +114,87 @@ else
   exit 1
 fi
 
-if [ "$CUSTOM_LIBCPP" -eq 1 ]; then
-  unset SKIP_LIBCPP_RUNTIME_BUILD || true
-  if [ ! -f "$TOOLCHAIN_STAMP" ]; then
-    bootstrap_instrumented_llvm "$INSTRUMENTED_LIBCPP_MODE" "$SANITIZER_CHOICE"
-    if [ -n "$HOST_TOOLCHAIN_DIR" ]; then
-      mkdir -p "$HOST_TOOLCHAIN_DIR"
-      cp -a "${TOOLCHAIN_STAMP_DIR}/." "$HOST_TOOLCHAIN_DIR/"
-    fi
-  else
-    if [ "$SKIP_CFL_SETUP_FLAG" = "true" ]; then
-      echo "Using prebuilt instrumented toolchain for mode '$INSTRUMENTED_LIBCPP_MODE'."
-    fi
-    export USE_INSTRUMENTED_LIBCPP="$INSTRUMENTED_LIBCPP_MODE"
-  fi
-fi
-
 export BUILD_TRIPLET="x86_64-pc-linux-gnu"
 export CFLAGS="${CFLAGS:-} -flto=full"
 export CXXFLAGS="${CXXFLAGS:-} -flto=full"
 export LDFLAGS="-fuse-ld=lld -flto=full ${LDFLAGS:-}"
 export CPPFLAGS="${CPPFLAGS:-} -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG"
 FUZZ_LIBS_VALUE="$LIB_FUZZING_ENGINE"
-CUSTOM_LIBCPP_LIB_PATH=""
+DEFAULT_LIBCPP_DIR=""
+SYSTEM_LIBSTDCPP_DIR=""
+SYSTEM_LIBSTDCPP_FILE=""
 
-if [ "$CUSTOM_LIBCPP" -ne 1 ]; then
-  CXX_BIN="${CXX:-clang++}"
-  DEFAULT_LIBCPP_DIR=""
-  SYSTEM_LIBSTDCPP_DIR=""
-  SYSTEM_LIBSTDCPP_FILE=""
-
-  if command -v "$CXX_BIN" >/dev/null 2>&1; then
-    libcxx_archive="$("$CXX_BIN" -print-file-name=libc++.a 2>/dev/null || true)"
-    if [ -n "$libcxx_archive" ] && [ "$libcxx_archive" != "libc++.a" ]; then
-      DEFAULT_LIBCPP_DIR="$(dirname "$libcxx_archive")"
-    fi
-    stdcpp_path="$("$CXX_BIN" -print-file-name=libstdc++.so 2>/dev/null || true)"
-    if [ -z "$stdcpp_path" ] || [ "$stdcpp_path" = "libstdc++.so" ]; then
-      stdcpp_path="$("$CXX_BIN" -print-file-name=libstdc++.a 2>/dev/null || true)"
-    fi
-    if [ -n "$stdcpp_path" ] && [ "$stdcpp_path" != "libstdc++.so" ] && [ "$stdcpp_path" != "libstdc++.a" ]; then
-      SYSTEM_LIBSTDCPP_DIR="$(dirname "$stdcpp_path")"
-      SYSTEM_LIBSTDCPP_FILE="$stdcpp_path"
-    fi
+CXX_BIN="${CXX:-clang++}"
+if command -v "$CXX_BIN" >/dev/null 2>&1; then
+  libcxx_archive="$("$CXX_BIN" -print-file-name=libc++.a 2>/dev/null || true)"
+  if [ -n "$libcxx_archive" ] && [ "$libcxx_archive" != "libc++.a" ]; then
+    DEFAULT_LIBCPP_DIR="$(dirname "$libcxx_archive")"
   fi
-
-  if [ -z "$SYSTEM_LIBSTDCPP_DIR" ] && command -v g++ >/dev/null 2>&1; then
-    stdcpp_path="$(g++ -print-file-name=libstdc++.so 2>/dev/null || true)"
-    if [ -z "$stdcpp_path" ] || [ "$stdcpp_path" = "libstdc++.so" ]; then
-      stdcpp_path="$(g++ -print-file-name=libstdc++.a 2>/dev/null || true)"
-    fi
-    if [ -n "$stdcpp_path" ] && [ "$stdcpp_path" != "libstdc++.so" ] && [ "$stdcpp_path" != "libstdc++.a" ]; then
-      SYSTEM_LIBSTDCPP_DIR="$(dirname "$stdcpp_path")"
-      SYSTEM_LIBSTDCPP_FILE="$stdcpp_path"
-    fi
+  stdcpp_path="$("$CXX_BIN" -print-file-name=libstdc++.so 2>/dev/null || true)"
+  if [ -z "$stdcpp_path" ] || [ "$stdcpp_path" = "libstdc++.so" ]; then
+    stdcpp_path="$("$CXX_BIN" -print-file-name=libstdc++.a 2>/dev/null || true)"
   fi
-
-  declare -a LIB_SEARCH_PATHS=()
-  if [ -n "$SYSTEM_LIBSTDCPP_DIR" ] && [ -d "$SYSTEM_LIBSTDCPP_DIR" ]; then
-    LIB_SEARCH_PATHS+=("$SYSTEM_LIBSTDCPP_DIR")
-  fi
-  if [ -n "$DEFAULT_LIBCPP_DIR" ] && [ -d "$DEFAULT_LIBCPP_DIR" ]; then
-    if [ "$DEFAULT_LIBCPP_DIR" != "$SYSTEM_LIBSTDCPP_DIR" ]; then
-      LIB_SEARCH_PATHS+=("$DEFAULT_LIBCPP_DIR")
-    fi
-  fi
-
-  if [ ${#LIB_SEARCH_PATHS[@]} -gt 0 ]; then
-    local_path_list="${LIBRARY_PATH:-}"
-    local_ld_path="${LD_LIBRARY_PATH:-}"
-    for search_dir in "${LIB_SEARCH_PATHS[@]}"; do
-      if [ -n "$local_path_list" ]; then
-        local_path_list="${search_dir}:${local_path_list}"
-      else
-        local_path_list="$search_dir"
-      fi
-      if [ -n "$local_ld_path" ]; then
-        local_ld_path="${search_dir}:${local_ld_path}"
-      else
-        local_ld_path="$search_dir"
-      fi
-      export LDFLAGS="${LDFLAGS} -L${search_dir}"
-    done
-    export LIBRARY_PATH="$local_path_list"
-    export LD_LIBRARY_PATH="$local_ld_path"
-    if [ -n "$DEFAULT_LIBCPP_DIR" ]; then
-      export LDFLAGS="${LDFLAGS} -Wl,-rpath,${DEFAULT_LIBCPP_DIR}"
-    fi
+  if [ -n "$stdcpp_path" ] && [ "$stdcpp_path" != "libstdc++.so" ] && [ "$stdcpp_path" != "libstdc++.a" ]; then
+    SYSTEM_LIBSTDCPP_DIR="$(dirname "$stdcpp_path")"
+    SYSTEM_LIBSTDCPP_FILE="$stdcpp_path"
   fi
 fi
 
-if [ "$CUSTOM_LIBCPP" -eq 1 ]; then
-  LIBCXX_DIR="${LIBCXX_DIR:-/cxx_build/}"
-  LIBCXX_INCLUDE_DIR="${LIBCXX_DIR}include/c++/v1"
-  LIBCXX_LIB_DIR="${LIBCXX_DIR}lib"
-  LIBCXX_FLAGS="-nostdinc++ -nostdlib++ -isystem ${LIBCXX_INCLUDE_DIR} -L${LIBCXX_LIB_DIR} -Wl,-rpath,${LIBCXX_LIB_DIR} -Wl,-rpath,\$ORIGIN -lc++ -lc++abi -lpthread -Wno-unused-command-line-argument"
-
-  if [ "$SANITIZER_CHOICE" = "memory" ]; then
-    MSAN_EXTRA_FLAGS="-fsanitize-memory-track-origins=2 -fno-optimize-sibling-calls"
-    export CFLAGS="${CFLAGS} ${MSAN_EXTRA_FLAGS}"
-    export CXXFLAGS="${CXXFLAGS} ${MSAN_EXTRA_FLAGS}"
+if [ -z "$SYSTEM_LIBSTDCPP_DIR" ] && command -v g++ >/dev/null 2>&1; then
+  stdcpp_path="$(g++ -print-file-name=libstdc++.so 2>/dev/null || true)"
+  if [ -z "$stdcpp_path" ] || [ "$stdcpp_path" = "libstdc++.so" ]; then
+    stdcpp_path="$(g++ -print-file-name=libstdc++.a 2>/dev/null || true)"
   fi
-
-  export CXXFLAGS="${CXXFLAGS} ${LIBCXX_FLAGS}"
-  export LDFLAGS="${LDFLAGS} ${LIBCXX_FLAGS}"
-  CUSTOM_LIBCPP_LIB_PATH="$LIBCXX_LIB_DIR"
-
-  CLANG_BIN="clang-${APT_LLVM_V}"
-  if ! command -v "$CLANG_BIN" >/dev/null 2>&1; then
-    CLANG_BIN="clang"
+  if [ -n "$stdcpp_path" ] && [ "$stdcpp_path" != "libstdc++.so" ] && [ "$stdcpp_path" != "libstdc++.a" ]; then
+    SYSTEM_LIBSTDCPP_DIR="$(dirname "$stdcpp_path")"
+    SYSTEM_LIBSTDCPP_FILE="$stdcpp_path"
   fi
+fi
 
-  FUZZ_RUNTIME_CANDIDATE=""
-  # Compiler-rt leaves sanitized libclang_rt archives in its own tree; probe
-  # both the libc++ lib dir and compiler-rt output before falling back.
-  RUNTIME_BASE_DIRS=(
-    "${LIBCXX_LIB_DIR}/linux"
-    "/cxx_build/compiler-rt/lib/linux"
-    "/cxx_build/lib/linux"
-    "/cxx_build/lib"
-  )
+declare -a LIB_SEARCH_PATHS=()
+if [ -n "$SYSTEM_LIBSTDCPP_DIR" ] && [ -d "$SYSTEM_LIBSTDCPP_DIR" ]; then
+  LIB_SEARCH_PATHS+=("$SYSTEM_LIBSTDCPP_DIR")
+fi
+if [ -n "$DEFAULT_LIBCPP_DIR" ] && [ -d "$DEFAULT_LIBCPP_DIR" ]; then
+  if [ "$DEFAULT_LIBCPP_DIR" != "$SYSTEM_LIBSTDCPP_DIR" ]; then
+    LIB_SEARCH_PATHS+=("$DEFAULT_LIBCPP_DIR")
+  fi
+fi
 
-  for runtime_base in "${RUNTIME_BASE_DIRS[@]}"; do
-    [ -d "$runtime_base" ] || continue
-
-    RUNTIME_CANDIDATES=("${runtime_base}/libclang_rt.fuzzer-x86_64.a")
-
-    case "$SANITIZER_CHOICE" in
-      memory)
-        RUNTIME_CANDIDATES=(
-          "${runtime_base}/libclang_rt.fuzzer-msan-x86_64.a"
-          "${RUNTIME_CANDIDATES[@]}"
-        )
-        ;;
-      address)
-        RUNTIME_CANDIDATES=(
-          "${runtime_base}/libclang_rt.fuzzer-asan-x86_64.a"
-          "${RUNTIME_CANDIDATES[@]}"
-        )
-        ;;
-      undefined|integer)
-        RUNTIME_CANDIDATES=(
-          "${runtime_base}/libclang_rt.fuzzer-ubsan_standalone-x86_64.a"
-          "${runtime_base}/libclang_rt.fuzzer-ubsan-x86_64.a"
-          "${RUNTIME_CANDIDATES[@]}"
-        )
-        ;;
-    esac
-
-    for candidate in "${RUNTIME_CANDIDATES[@]}"; do
-      if [ -f "$candidate" ]; then
-        FUZZ_RUNTIME_CANDIDATE="$candidate"
-        break 2
-      fi
-    done
+if [ ${#LIB_SEARCH_PATHS[@]} -gt 0 ]; then
+  local_path_list="${LIBRARY_PATH:-}"
+  local_ld_path="${LD_LIBRARY_PATH:-}"
+  for search_dir in "${LIB_SEARCH_PATHS[@]}"; do
+    if [ -n "$local_path_list" ]; then
+      local_path_list="${search_dir}:${local_path_list}"
+    else
+      local_path_list="$search_dir"
+    fi
+    if [ -n "$local_ld_path" ]; then
+      local_ld_path="${search_dir}:${local_ld_path}"
+    else
+      local_ld_path="$search_dir"
+    fi
+    export LDFLAGS="${LDFLAGS} -L${search_dir}"
   done
-
-  if [ -z "$FUZZ_RUNTIME_CANDIDATE" ]; then
-    # Compiler-rt sometimes shuffles runtime paths between releases; fall back to
-    # a broader search before using the system-provided archive.
-  mapfile -t FOUND_RUNTIMES < <(find /cxx_build -maxdepth 8 -type f -name 'libclang_rt.fuzzer*.a' 2>/dev/null | sort)
-    if [ ${#FOUND_RUNTIMES[@]} -gt 0 ]; then
-      case "$SANITIZER_CHOICE" in
-        memory)
-          PREFERRED_SUFFIXES=(fuzzer-msan fuzzer_msan fuzzer)
-          ;;
-        address)
-          PREFERRED_SUFFIXES=(fuzzer-asan fuzzer)
-          ;;
-        undefined|integer)
-          PREFERRED_SUFFIXES=(fuzzer-ubsan_standalone fuzzer-ubsan fuzzer)
-          ;;
-        *)
-          PREFERRED_SUFFIXES=(fuzzer)
-          ;;
-      esac
-
-      for suffix in "${PREFERRED_SUFFIXES[@]}"; do
-        for candidate in "${FOUND_RUNTIMES[@]}"; do
-          case "$candidate" in
-            *"${suffix}"*.a)
-              FUZZ_RUNTIME_CANDIDATE="$candidate"
-              break 2
-              ;;
-          esac
-        done
-      done
-
-      if [ -z "$FUZZ_RUNTIME_CANDIDATE" ]; then
-        FUZZ_RUNTIME_CANDIDATE="${FOUND_RUNTIMES[0]}"
-      fi
-    fi
-  fi
-
-  if [ -z "$FUZZ_RUNTIME_CANDIDATE" ]; then
-    FALLBACK_RUNTIME="$("$CLANG_BIN" -print-file-name=libclang_rt.fuzzer-x86_64.a)"
-    if [ -n "$FALLBACK_RUNTIME" ] && [ -f "$FALLBACK_RUNTIME" ]; then
-      FUZZ_RUNTIME_CANDIDATE="$FALLBACK_RUNTIME"
-    fi
-  fi
-
-  if [ -n "$FUZZ_RUNTIME_CANDIDATE" ]; then
-    FUZZ_LIBS_VALUE="$FUZZ_RUNTIME_CANDIDATE"
+  export LIBRARY_PATH="$local_path_list"
+  export LD_LIBRARY_PATH="$local_ld_path"
+  if [ -n "$DEFAULT_LIBCPP_DIR" ]; then
+    export LDFLAGS="${LDFLAGS} -Wl,-rpath,${DEFAULT_LIBCPP_DIR}"
   fi
 fi
-
-if [ "$CUSTOM_LIBCPP" -ne 1 ]; then
-  if [ -n "$SYSTEM_LIBSTDCPP_FILE" ] && [ -e "$SYSTEM_LIBSTDCPP_FILE" ]; then
-    if [ -n "$FUZZ_LIBS_VALUE" ]; then
-      FUZZ_LIBS_VALUE="${FUZZ_LIBS_VALUE};${SYSTEM_LIBSTDCPP_FILE}"
-    else
-      FUZZ_LIBS_VALUE="$SYSTEM_LIBSTDCPP_FILE"
-    fi
+if [ -n "$SYSTEM_LIBSTDCPP_FILE" ] && [ -e "$SYSTEM_LIBSTDCPP_FILE" ]; then
+  if [ -n "$FUZZ_LIBS_VALUE" ]; then
+    FUZZ_LIBS_VALUE="${FUZZ_LIBS_VALUE};${SYSTEM_LIBSTDCPP_FILE}"
   else
-    if [ -n "$FUZZ_LIBS_VALUE" ]; then
-      FUZZ_LIBS_VALUE="${FUZZ_LIBS_VALUE};-lstdc++"
-    else
-      FUZZ_LIBS_VALUE="-lstdc++"
-    fi
+    FUZZ_LIBS_VALUE="$SYSTEM_LIBSTDCPP_FILE"
   fi
-fi
-
-if [ "$CUSTOM_LIBCPP" -eq 1 ] && [ "$FUZZ_LIBS_VALUE" = "$LIB_FUZZING_ENGINE" ]; then
-  FUZZ_LIBS_VALUE="${LIB_FUZZING_ENGINE};-lstdc++"
+else
+  if [ -n "$FUZZ_LIBS_VALUE" ]; then
+    FUZZ_LIBS_VALUE="${FUZZ_LIBS_VALUE};-lstdc++"
+  else
+    FUZZ_LIBS_VALUE="-lstdc++"
+  fi
 fi
 
 DEPENDS_PREFIX_DIR="depends/${BUILD_TRIPLET}"
@@ -527,26 +303,6 @@ PY
   fi
 
 done
-
-if [ "$CUSTOM_LIBCPP" -eq 1 ] && [ -n "$CUSTOM_LIBCPP_LIB_PATH" ]; then
-  # Ensure the custom libc++ runtime is available when bad build checks replay targets.
-  for pattern in libc++.so* libc++abi.so* libunwind.so*; do
-    for source in "${CUSTOM_LIBCPP_LIB_PATH}"/${pattern}; do
-      [ -e "$source" ] || continue
-      cp -a "$source" "$OUT/"
-    done
-  done
-
-  for lib in libc++ libc++abi libunwind; do
-    for suffix in .so.1 .so; do
-      src="${CUSTOM_LIBCPP_LIB_PATH}/${lib}${suffix}"
-      dest="$OUT/${lib}${suffix}"
-      if [ -e "$src" ] && [ ! -e "$dest" ]; then
-        cp -a "$src" "$OUT/"
-      fi
-    done
-  done
-fi
 
 # Bad build checks re-run the packaged binary in that minimal sandbox; ship the symbolizer beside it.
 bundle_symbolizer "$OUT"

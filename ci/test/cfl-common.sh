@@ -31,21 +31,3 @@ cfl_packages_for_sanitizer() {
   packages+=" ninja-build make cmake"
   printf '%s' "$packages"
 }
-
-cfl_instrumented_mode() {
-  local sanitizer="${1:-address}"
-  case "$sanitizer" in
-    memory)
-      printf '%s' "MemoryWithOrigins"
-      ;;
-    address)
-      printf '%s' "Address"
-      ;;
-    undefined|integer)
-      printf '%s' "Undefined"
-      ;;
-    *)
-      printf '%s' ''
-      ;;
-  esac
-}

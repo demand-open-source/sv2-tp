@@ -12,9 +12,6 @@ RUN apt-get update && apt-get install -y \
 
 COPY . $SRC/sv2-tp
 WORKDIR $SRC/sv2-tp
-RUN mkdir -p /cxx_build \
-  && if [ -d "$SRC/sv2-tp/cxx_build" ]; then cp -a "$SRC/sv2-tp/cxx_build/." /cxx_build/; fi
-ENV CFL_TOOLCHAIN_STAMP_DIR=/cxx_build
 RUN rm -rf assets && \
   git clone --depth=1 https://github.com/sjors/sv2-tp-qa-assets assets && \
   rm -rf assets/.git

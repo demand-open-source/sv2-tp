@@ -4,44 +4,6 @@ export LC_ALL=C
 
 SYMBOLIZER_DEPENDENCIES=()
 SYMBOLIZER_LDD_MISSING=0
-SYMBOLIZER_LOADER_BASENAME=""
-
-ensure_loader_shadow_paths() {
-  local dest_dir="$1"
-
-  if [ -z "$SYMBOLIZER_LOADER_BASENAME" ]; then
-    return 0
-  fi
-
-  local loader_path="$dest_dir/$SYMBOLIZER_LOADER_BASENAME"
-  if [ ! -e "$loader_path" ]; then
-    return 0
-  fi
-
-  local shadow_dir rel_target link_path
-  for shadow_dir in "lib64" "lib/x86_64-linux-gnu"; do
-    case "$shadow_dir" in
-      lib64)
-        rel_target="../$SYMBOLIZER_LOADER_BASENAME"
-        ;;
-      lib/x86_64-linux-gnu)
-        rel_target="../../$SYMBOLIZER_LOADER_BASENAME"
-        ;;
-      *)
-        continue
-        ;;
-    esac
-
-    link_path="$dest_dir/$shadow_dir/$SYMBOLIZER_LOADER_BASENAME"
-    if [ -e "$link_path" ] || [ -L "$link_path" ]; then
-      continue
-    fi
-
-    mkdir -p "$(dirname "$link_path")"
-    ln -s "$rel_target" "$link_path"
-    echo "Bundled loader symlink $link_path -> $rel_target" >&2
-  done
-}
 
 ensure_symbolizer_available() {
   if ls "$EXPECTED_SYMBOLIZER" >/dev/null 2>&1; then
@@ -64,7 +26,6 @@ enumerate_symbolizer_dependencies() {
 
   SYMBOLIZER_DEPENDENCIES=()
   SYMBOLIZER_LDD_MISSING=0
-  SYMBOLIZER_LOADER_BASENAME=""
 
   if [ ! -x "$binary" ]; then
     return 0
@@ -108,15 +69,6 @@ enumerate_symbolizer_dependencies() {
     fi
 
     SYMBOLIZER_DEPENDENCIES+=("$candidate")
-    if [ -z "$SYMBOLIZER_LOADER_BASENAME" ]; then
-      local base
-      base="$(basename "$candidate")"
-      case "$base" in
-        ld-*.so*)
-          SYMBOLIZER_LOADER_BASENAME="$base"
-          ;;
-      esac
-    fi
   done < <(ldd "$binary" 2>/dev/null || true)
 
   return 0
@@ -183,9 +135,9 @@ bundle_symbolizer() {
 
   enumerate_symbolizer_dependencies "$symbolizer_realpath"
 
-  local symbolizer_real_copy
-  symbolizer_real_copy="$dest_dir/${symbolizer_basename}.real"
-  cp -p "$symbolizer_realpath" "$symbolizer_real_copy"
+  local symbolizer_exec_path
+  symbolizer_exec_path="$dest_dir/$symbolizer_basename"
+  cp -p "$symbolizer_realpath" "$symbolizer_exec_path"
   copy_symbolizer_dependencies "$dest_dir"
 
   local suffix=""
@@ -193,61 +145,14 @@ bundle_symbolizer() {
     suffix=" ($context_label)"
   fi
 
-  local wrapper_created=0
-  local symbolizer_exec_path="$dest_dir/$symbolizer_basename"
-  if [ -n "$SYMBOLIZER_LOADER_BASENAME" ] && [ -e "$dest_dir/$SYMBOLIZER_LOADER_BASENAME" ]; then
-    local wrapper_compiler=""
-    if command -v clang >/dev/null 2>&1; then
-      wrapper_compiler="clang"
-    elif command -v cc >/dev/null 2>&1; then
-      wrapper_compiler="cc"
-    elif command -v gcc >/dev/null 2>&1; then
-      wrapper_compiler="gcc"
-    else
-      echo "No suitable C compiler found to build llvm-symbolizer wrapper" >&2
-      return 1
-    fi
-
-    local wrapper_source="./.clusterfuzzlite/llvm-symbolizer-wrapper.c"
-    if [ ! -f "$wrapper_source" ]; then
-      echo "Wrapper source $wrapper_source missing" >&2
-      return 1
-    fi
-
-    local wrapper_defines=(
-      "-DWRAPPED_LOADER_BASENAME=\"${SYMBOLIZER_LOADER_BASENAME}\""
-      "-DWRAPPED_SYMBOLIZER_REAL=\"${symbolizer_basename}.real\""
-    )
-
-    if ! "$wrapper_compiler" -std=c99 -Wall -Wextra -Wpedantic -O2 -fPIE -pie \
-      "$wrapper_source" "${wrapper_defines[@]}" -o "$symbolizer_exec_path"; then
-      echo "Failed to build llvm-symbolizer wrapper using $wrapper_compiler" >&2
-      return 1
-    fi
-
-    wrapper_created=1
-    ensure_loader_shadow_paths "$dest_dir"
-  else
-    mv "$symbolizer_real_copy" "$symbolizer_exec_path"
-    symbolizer_real_copy="$symbolizer_exec_path"
-  fi
-
-  if ! verify_symbolizer_bundle "$symbolizer_real_copy" "$dest_dir" "$suffix"; then
-    if [ "$wrapper_created" -eq 1 ]; then
-      (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./${symbolizer_basename}.real" >&2) || true
-    else
-      (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./$symbolizer_basename" >&2) || true
-    fi
+  if ! verify_symbolizer_bundle "$symbolizer_exec_path" "$dest_dir" "$suffix"; then
+    (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./$symbolizer_basename" >&2) || true
     return 1
   fi
 
   if ! (cd "$dest_dir" && env -i LD_LIBRARY_PATH="$dest_dir" "$symbolizer_exec_path" --version >/dev/null 2>&1); then
     echo "Bundled llvm-symbolizer self-test failed${suffix}" >&2
-    if [ "$wrapper_created" -eq 1 ]; then
-      (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./${symbolizer_basename}.real" >&2) || true
-    else
-      (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./$symbolizer_basename" >&2) || true
-    fi
+    (cd "$dest_dir" && LD_LIBRARY_PATH="$dest_dir" ldd "./$symbolizer_basename" >&2) || true
     return 1
   fi
 

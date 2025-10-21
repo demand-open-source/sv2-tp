@@ -20,7 +20,6 @@ jobs:
       job_name: Coverage
       sanitizers_json: '{"sanitizer":["coverage"]}'
       run_base_install: false
-      run_toolchain: false
       run_mode: coverage
       fuzz_seconds: 600
       output_sarif: true
