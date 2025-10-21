@@ -224,6 +224,7 @@ if [ "$CUSTOM_LIBCPP" -ne 1 ]; then
   CXX_BIN="${CXX:-clang++}"
   DEFAULT_LIBCPP_DIR=""
   SYSTEM_LIBSTDCPP_DIR=""
+  SYSTEM_LIBSTDCPP_FILE=""
 
   if command -v "$CXX_BIN" >/dev/null 2>&1; then
     libcxx_archive="$("$CXX_BIN" -print-file-name=libc++.a 2>/dev/null || true)"
@@ -236,6 +237,7 @@ if [ "$CUSTOM_LIBCPP" -ne 1 ]; then
     fi
     if [ -n "$stdcpp_path" ] && [ "$stdcpp_path" != "libstdc++.so" ] && [ "$stdcpp_path" != "libstdc++.a" ]; then
       SYSTEM_LIBSTDCPP_DIR="$(dirname "$stdcpp_path")"
+      SYSTEM_LIBSTDCPP_FILE="$stdcpp_path"
     fi
   fi
 
@@ -246,6 +248,7 @@ if [ "$CUSTOM_LIBCPP" -ne 1 ]; then
     fi
     if [ -n "$stdcpp_path" ] && [ "$stdcpp_path" != "libstdc++.so" ] && [ "$stdcpp_path" != "libstdc++.a" ]; then
       SYSTEM_LIBSTDCPP_DIR="$(dirname "$stdcpp_path")"
+      SYSTEM_LIBSTDCPP_FILE="$stdcpp_path"
     fi
   fi
 
@@ -399,10 +402,18 @@ if [ "$CUSTOM_LIBCPP" -eq 1 ]; then
 fi
 
 if [ "$CUSTOM_LIBCPP" -ne 1 ]; then
-  if [ -n "$FUZZ_LIBS_VALUE" ]; then
-    FUZZ_LIBS_VALUE="${FUZZ_LIBS_VALUE};-lstdc++"
+  if [ -n "$SYSTEM_LIBSTDCPP_FILE" ] && [ -e "$SYSTEM_LIBSTDCPP_FILE" ]; then
+    if [ -n "$FUZZ_LIBS_VALUE" ]; then
+      FUZZ_LIBS_VALUE="${FUZZ_LIBS_VALUE};${SYSTEM_LIBSTDCPP_FILE}"
+    else
+      FUZZ_LIBS_VALUE="$SYSTEM_LIBSTDCPP_FILE"
+    fi
   else
-    FUZZ_LIBS_VALUE="-lstdc++"
+    if [ -n "$FUZZ_LIBS_VALUE" ]; then
+      FUZZ_LIBS_VALUE="${FUZZ_LIBS_VALUE};-lstdc++"
+    else
+      FUZZ_LIBS_VALUE="-lstdc++"
+    fi
   fi
 fi
 
