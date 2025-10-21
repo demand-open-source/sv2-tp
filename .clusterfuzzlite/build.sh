@@ -110,6 +110,15 @@ fi
 
 ensure_symbolizer_available
 
+# Surface ClusterFuzzLite-provided toolchain flags for visibility and auditing.
+echo "[cfl] toolchain env:" >&2
+echo "  CC=${CC:-}"
+echo "  CXX=${CXX:-}"
+echo "  CFLAGS=${CFLAGS:-}"
+echo "  CXXFLAGS=${CXXFLAGS:-}"
+echo "  LIB_FUZZING_ENGINE=${LIB_FUZZING_ENGINE:-}"
+echo "  SANITIZER=${SANITIZER:-}"
+
 PRE_BUNDLE_DIR="$(mktemp -d)"
 if bundle_symbolizer "$PRE_BUNDLE_DIR" "preflight"; then
   rm -rf "$PRE_BUNDLE_DIR"
@@ -315,12 +324,17 @@ fi
 cmake -B build_fuzz \
   --toolchain "depends/${BUILD_TRIPLET}/toolchain.cmake" \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_C_COMPILER="${CC:-clang}" \
+  -DCMAKE_CXX_COMPILER="${CXX:-clang++}" \
   -DCMAKE_C_FLAGS_RELWITHDEBINFO="" \
   -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="" \
+  -DCMAKE_C_FLAGS="${CFLAGS:-}" \
+  -DCMAKE_CXX_FLAGS="${CXXFLAGS:-}" \
   -DBUILD_FOR_FUZZING=ON \
   -DBUILD_FUZZ_BINARY=ON \
-  -DFUZZ_LIBS="$FUZZ_LIBS_VALUE" \
+  -DFUZZ_LIBS="${FUZZ_LIBS_VALUE:-${LIB_FUZZING_ENGINE:-}}" \
   -DSANITIZERS="$SANITIZER_CHOICE" \
+  -DCMAKE_VERBOSE_MAKEFILE=ON \
   "${EXTRA_CMAKE_ARGS[@]}"
 
 cmake --build build_fuzz -j"$(nproc)"
