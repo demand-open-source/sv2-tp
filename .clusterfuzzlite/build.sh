@@ -7,6 +7,19 @@ date
 
 cd "$SRC/sv2-tp"
 
+# Keep ccache outputs on the runner workspace so cache save can pick them up.
+if [ -n "${GITHUB_WORKSPACE:-}" ] && [ -n "${CCACHE_DIR:-}" ]; then
+  host_ccache_dir="${GITHUB_WORKSPACE}/.cfl-ccache"
+  mkdir -p "$host_ccache_dir"
+  if [ "$CCACHE_DIR" != "$host_ccache_dir" ]; then
+    mkdir -p "$(dirname "$CCACHE_DIR")"
+    if [ -e "$CCACHE_DIR" ] || [ -L "$CCACHE_DIR" ]; then
+      rm -rf "$CCACHE_DIR"
+    fi
+    ln -s "$host_ccache_dir" "$CCACHE_DIR"
+  fi
+fi
+
 # Reuse a repository-local cache by default so helper runs can share state with
 # the workflow containers. Callers may override BASE_ROOT_DIR explicitly.
 BASE_ROOT_DIR="${BASE_ROOT_DIR:-${PWD}/.cfl-base}"
@@ -119,6 +132,18 @@ export CFLAGS="${CFLAGS:-} -flto=full"
 export CXXFLAGS="${CXXFLAGS:-} -flto=full"
 export LDFLAGS="-fuse-ld=lld -flto=full ${LDFLAGS:-}"
 export CPPFLAGS="${CPPFLAGS:-} -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG"
+
+HOST_DEPENDS_DIR=""
+if [ -n "${GITHUB_WORKSPACE:-}" ]; then
+  HOST_DEPENDS_DIR="${GITHUB_WORKSPACE}/depends/${BUILD_TRIPLET}"
+  if [ -d "$HOST_DEPENDS_DIR" ] && find "$HOST_DEPENDS_DIR" -mindepth 1 -print -quit >/dev/null 2>&1; then
+    echo "Restoring cached depends outputs from ${HOST_DEPENDS_DIR}" >&2
+    mkdir -p depends
+    rm -rf "depends/${BUILD_TRIPLET}"
+    cp -a "$HOST_DEPENDS_DIR" depends/
+  fi
+fi
+
 FUZZ_LIBS_VALUE="$LIB_FUZZING_ENGINE"
 DEFAULT_LIBCPP_DIR=""
 SYSTEM_LIBSTDCPP_DIR=""
@@ -239,6 +264,14 @@ if [ "$NEED_DEPENDS_BUILD" -eq 1 ]; then
       STRIP=llvm-strip \
       -j"$(nproc)"
   )
+fi
+
+if [ -n "$HOST_DEPENDS_DIR" ] && [ -d "depends/${BUILD_TRIPLET}" ]; then
+  host_depends_parent="$(dirname "$HOST_DEPENDS_DIR")"
+  mkdir -p "$host_depends_parent"
+  rm -rf "$HOST_DEPENDS_DIR"
+  echo "Exporting depends outputs to ${HOST_DEPENDS_DIR}" >&2
+  cp -a "depends/${BUILD_TRIPLET}" "$host_depends_parent/"
 fi
 
 sed -i "s|PROVIDE_FUZZ_MAIN_FUNCTION|NEVER_PROVIDE_MAIN_FOR_CLUSTERFUZZLITE|g" ./src/test/fuzz/CMakeLists.txt || true
