@@ -407,12 +407,6 @@ if [ "$SANITIZER_CHOICE" = "memory" ]; then
   EXTRA_CMAKE_ARGS+=("-DAPPEND_CPPFLAGS=-U_FORTIFY_SOURCE")
 fi
 
-CMAKE_C_FLAGS_VALUE="${CFLAGS:-}"
-CMAKE_CXX_FLAGS_VALUE="${CXXFLAGS:-}"
-if [ "$CUSTOM_LIBCPP" -ne 1 ]; then
-  CMAKE_CXX_FLAGS_VALUE="$(normalize_stdlib_flag "$CMAKE_CXX_FLAGS_VALUE")"
-fi
-
 cmake -B build_fuzz \
   --toolchain "depends/${BUILD_TRIPLET}/toolchain.cmake" \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
