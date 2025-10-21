@@ -95,28 +95,6 @@ log_cfl_toolchain_artifacts() {
   fi
 }
 
-normalize_stdlib_flag() {
-  local existing="${1:-}"
-  local token
-  local -a tokens=()
-  if [ -n "$existing" ]; then
-    read -r -a tokens <<<"$existing"
-  fi
-
-  local -a filtered=()
-  for token in "${tokens[@]}"; do
-    case "$token" in
-      -stdlib=libc++|-stdlib=libstdc++)
-        continue
-        ;;
-    esac
-    filtered+=("$token")
-  done
-
-  filtered+=("-stdlib=libstdc++")
-  printf '%s' "${filtered[*]}"
-}
-
 INSTRUMENTED_LIBCPP_MODE="$(cfl_instrumented_mode "$SANITIZER_CHOICE")"
 if [ "$DISABLE_CUSTOM_LIBCPP" = "true" ]; then
   if [ -n "$INSTRUMENTED_LIBCPP_MODE" ]; then
@@ -241,6 +219,23 @@ export LDFLAGS="-fuse-ld=lld -flto=full ${LDFLAGS:-}"
 export CPPFLAGS="${CPPFLAGS:-} -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG"
 FUZZ_LIBS_VALUE="$LIB_FUZZING_ENGINE"
 CUSTOM_LIBCPP_LIB_PATH=""
+
+if [ "$CUSTOM_LIBCPP" -ne 1 ]; then
+  CXX_BIN="${CXX:-clang++}"
+  DEFAULT_LIBCPP_DIR=""
+  if command -v "$CXX_BIN" >/dev/null 2>&1; then
+    libcxx_archive="$("$CXX_BIN" -print-file-name=libc++.a 2>/dev/null || true)"
+    if [ -n "$libcxx_archive" ] && [ "$libcxx_archive" != "libc++.a" ]; then
+      DEFAULT_LIBCPP_DIR="$(dirname "$libcxx_archive")"
+    fi
+  fi
+
+  if [ -n "$DEFAULT_LIBCPP_DIR" ] && [ -d "$DEFAULT_LIBCPP_DIR" ]; then
+    export LIBRARY_PATH="${DEFAULT_LIBCPP_DIR}${LIBRARY_PATH:+:${LIBRARY_PATH}}"
+    export LD_LIBRARY_PATH="${DEFAULT_LIBCPP_DIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+    export LDFLAGS="${LDFLAGS} -L${DEFAULT_LIBCPP_DIR} -Wl,-rpath,${DEFAULT_LIBCPP_DIR}"
+  fi
+fi
 
 if [ "$CUSTOM_LIBCPP" -eq 1 ]; then
   LIBCXX_DIR="${LIBCXX_DIR:-/cxx_build/}"
@@ -425,8 +420,8 @@ cmake -B build_fuzz \
   -DCMAKE_CXX_COMPILER="${CXX:-clang++}" \
   -DCMAKE_C_FLAGS_RELWITHDEBINFO="" \
   -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="" \
-  -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS_VALUE}" \
-  -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS_VALUE}" \
+  -DCMAKE_C_FLAGS="${CFLAGS:-}" \
+  -DCMAKE_CXX_FLAGS="${CXXFLAGS:-}" \
   -DBUILD_FOR_FUZZING=ON \
   -DBUILD_FUZZ_BINARY=ON \
   -DFUZZ_LIBS="${FUZZ_LIBS_VALUE:-${LIB_FUZZING_ENGINE:-}}" \
