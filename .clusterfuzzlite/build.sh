@@ -37,6 +37,50 @@ bootstrap_instrumented_llvm() {
   ./ci/test/build-instrumented-llvm.sh "$sanitizer"
 }
 
+log_cfl_toolchain_artifacts() {
+  local cxx_bin="${CXX:-clang++}"
+
+  echo "[cfl] toolchain probe:" >&2
+  echo "  compiler=${cxx_bin}" >&2
+
+  if ! command -v "$cxx_bin" >/dev/null 2>&1; then
+    echo "  status=missing-from-path" >&2
+    return
+  fi
+
+  echo "  compiler_version:" >&2
+  "$cxx_bin" --version 2>&1 | sed 's/^/    /' >&2 || true
+
+  local resource_dir
+  resource_dir="$("$cxx_bin" -print-resource-dir 2>/dev/null || true)"
+  if [ -n "$resource_dir" ]; then
+    echo "  resource_dir=${resource_dir}" >&2
+  fi
+
+  local lib
+  for lib in libc++.so libc++.a libc++abi.so libunwind.so; do
+    local resolved
+    resolved="$("$cxx_bin" -print-file-name="$lib" 2>/dev/null || true)"
+    if [ -n "$resolved" ] && [ "$resolved" != "$lib" ] && [ -e "$resolved" ]; then
+      echo "  ${lib}_path=${resolved}" >&2
+      ls -l -- "$resolved" 2>/dev/null | sed 's/^/    /' >&2 || true
+      sha256sum -- "$resolved" 2>/dev/null | sed 's/^/    /' >&2 || true
+    else
+      echo "  ${lib}_path=${resolved:-<none>}" >&2
+    fi
+  done
+
+  if [ -d /cxx_build/lib ]; then
+    echo "  instrumented_libcxx_dir=/cxx_build/lib" >&2
+    find /cxx_build/lib -maxdepth 1 -type f \(
+      -name 'libc++*'
+      -o -name 'libc++abi*'
+      -o -name 'libunwind*'
+      -o -name 'libclang_rt.*'
+    \) -print 2>/dev/null | sed 's/^/    /' >&2 || true
+  fi
+}
+
 INSTRUMENTED_LIBCPP_MODE="$(cfl_instrumented_mode "$SANITIZER_CHOICE")"
 if [ -n "$INSTRUMENTED_LIBCPP_MODE" ]; then
   CUSTOM_LIBCPP=1
@@ -118,6 +162,8 @@ echo "  CFLAGS=${CFLAGS:-}"
 echo "  CXXFLAGS=${CXXFLAGS:-}"
 echo "  LIB_FUZZING_ENGINE=${LIB_FUZZING_ENGINE:-}"
 echo "  SANITIZER=${SANITIZER:-}"
+
+log_cfl_toolchain_artifacts
 
 PRE_BUNDLE_DIR="$(mktemp -d)"
 if bundle_symbolizer "$PRE_BUNDLE_DIR" "preflight"; then
