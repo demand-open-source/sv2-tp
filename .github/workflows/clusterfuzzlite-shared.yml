@@ -49,26 +49,6 @@ jobs:
       - name: Prepare ccache directory
         run: mkdir -p .cfl-ccache
 
-      - name: Restore ccache (${{ matrix.sanitizer }})
-        id: cfl-ccache-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: .cfl-ccache
-          key: ${{ format('cfl-ccache-{0}-{1}-{2}-{3}', runner.os, matrix.sanitizer, hashFiles('ci/test/run-cfl-helper.sh', 'ci/test/cfl-common.sh'), github.run_id) }}
-          restore-keys: |
-            ${{ format('cfl-ccache-{0}-{1}-{2}-', runner.os, matrix.sanitizer, hashFiles('ci/test/run-cfl-helper.sh', 'ci/test/cfl-common.sh')) }}
-            ${{ format('cfl-ccache-{0}-{1}-', runner.os, matrix.sanitizer) }}
-
-      - name: Restore depends cache (${{ matrix.sanitizer }})
-        id: depends-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ${{ github.workspace }}/depends/x86_64-pc-linux-gnu
-          key: ${{ format('cfl-depends-{0}-{1}-{2}', runner.os, matrix.sanitizer, hashFiles('.clusterfuzzlite/build.sh', 'depends/packages.md', 'depends/funcs.mk', 'depends/patches/**', 'depends/packages/**')) }}
-          restore-keys: |
-            ${{ format('cfl-depends-{0}-{1}-', runner.os, matrix.sanitizer) }}
-
       - name: ClusterFuzzLite base install (${{ matrix.sanitizer }})
         if: ${{ inputs.run_base_install }}
         run: ./ci/test/run-cfl-helper.sh base-install "${{ matrix.sanitizer }}"
@@ -89,31 +69,6 @@ jobs:
         env:
           CCACHE_DIR: /workspace/.cfl-ccache
           CCACHE_MAXSIZE: 500M
-
-      - name: Save ccache (${{ matrix.sanitizer }})
-        if: ${{ github.event_name != 'push' && steps.cfl-ccache-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
-        with:
-          path: .cfl-ccache
-          key: ${{ format('cfl-ccache-{0}-{1}-{2}-{3}', runner.os, matrix.sanitizer, hashFiles('ci/test/run-cfl-helper.sh', 'ci/test/cfl-common.sh'), github.run_id) }}
-
-      - name: Check depends directory (${{ matrix.sanitizer }})
-        id: depends_dir
-        shell: bash
-        run: |
-          if [ -d "${{ github.workspace }}/depends/x86_64-pc-linux-gnu" ]; then
-            echo "exists=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >>"$GITHUB_OUTPUT"
-          fi
-
-      - name: Save depends cache (${{ matrix.sanitizer }})
-        if: ${{ github.event_name != 'push' && steps.depends-cache.outputs.cache-hit != 'true' && steps.depends_dir.outputs.exists == 'true' }}
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ${{ github.workspace }}/depends/x86_64-pc-linux-gnu
-          key: ${{ steps.depends-cache.outputs.cache-primary-key }}
 
       - name: Run fuzzers (${{ matrix.sanitizer }})
         if: ${{ inputs.run_fuzzers }}
