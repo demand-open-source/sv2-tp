@@ -87,3 +87,7 @@ jobs:
         env:
           CCACHE_DIR: /workspace/.cfl-ccache
           CCACHE_MAXSIZE: 500M
+          LLVM_SYMBOLIZER_PATH: ${{ github.workspace }}/build-out/llvm-symbolizer
+          ASAN_SYMBOLIZER_PATH: ${{ github.workspace }}/build-out/llvm-symbolizer
+          MSAN_SYMBOLIZER_PATH: ${{ github.workspace }}/build-out/llvm-symbolizer
+          UBSAN_SYMBOLIZER_PATH: ${{ github.workspace }}/build-out/llvm-symbolizer
