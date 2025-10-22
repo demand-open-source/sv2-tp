@@ -54,8 +54,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cfl-ccache
-          key: ${{ format('cfl-ccache-{0}-{1}-{2}', runner.os, matrix.sanitizer, hashFiles('ci/test/run-cfl-helper.sh', 'ci/test/cfl-common.sh')) }}
+          key: ${{ format('cfl-ccache-{0}-{1}-{2}-{3}', runner.os, matrix.sanitizer, hashFiles('ci/test/run-cfl-helper.sh', 'ci/test/cfl-common.sh'), github.run_id) }}
           restore-keys: |
+            ${{ format('cfl-ccache-{0}-{1}-{2}-', runner.os, matrix.sanitizer, hashFiles('ci/test/run-cfl-helper.sh', 'ci/test/cfl-common.sh')) }}
             ${{ format('cfl-ccache-{0}-{1}-', runner.os, matrix.sanitizer) }}
 
       - name: Restore depends cache (${{ matrix.sanitizer }})
@@ -94,7 +95,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .cfl-ccache
-          key: ${{ format('cfl-ccache-{0}-{1}-{2}', runner.os, matrix.sanitizer, hashFiles('ci/test/run-cfl-helper.sh', 'ci/test/cfl-common.sh')) }}
+          key: ${{ format('cfl-ccache-{0}-{1}-{2}-{3}', runner.os, matrix.sanitizer, hashFiles('ci/test/run-cfl-helper.sh', 'ci/test/cfl-common.sh'), github.run_id) }}
 
       - name: Check depends directory (${{ matrix.sanitizer }})
         id: depends_dir

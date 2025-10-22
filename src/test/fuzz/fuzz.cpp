@@ -33,10 +33,6 @@
 #include <utility>
 #include <vector>
 
-#include <tuple>
-#include <utility>
-#include <vector>
-
 #if defined(PROVIDE_FUZZ_MAIN_FUNCTION) && defined(__AFL_FUZZ_INIT)
 __AFL_FUZZ_INIT();
 #endif

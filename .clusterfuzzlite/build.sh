@@ -65,7 +65,7 @@ log_cfl_toolchain_artifacts() {
     resolved="$("$cxx_bin" -print-file-name="$lib" 2>/dev/null || true)"
     if [ -n "$resolved" ] && [ "$resolved" != "$lib" ] && [ -e "$resolved" ]; then
       echo "  ${lib}_path=${resolved}" >&2
-      ls -l -- "$resolved" 2>/dev/null | sed 's/^/    /' >&2 || true
+      find "$resolved" -maxdepth 0 -printf '%M %4k %u %g %TY-%Tm-%Td %TT %p\n' 2>/dev/null | sed 's/^/    /' >&2 || true
       sha256sum -- "$resolved" 2>/dev/null | sed 's/^/    /' >&2 || true
       if [ -n "$nm_bin" ]; then
         if "$nm_bin" --print-file-name "$resolved" 2>/dev/null | grep -q '__msan'; then
