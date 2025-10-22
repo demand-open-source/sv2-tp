@@ -88,17 +88,26 @@ jobs:
         env:
           CCACHE_DIR: /workspace/.cfl-ccache
           CCACHE_MAXSIZE: 500M
-          SKIP_CFL_SETUP: ${{ inputs.run_base_install }}
 
       - name: Save ccache (${{ matrix.sanitizer }})
-        if: ${{ steps.cfl-ccache-cache.outputs.cache-hit != 'true' }}
+        if: ${{ github.event_name != 'push' && steps.cfl-ccache-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: .cfl-ccache
           key: ${{ format('cfl-ccache-{0}-{1}-{2}', runner.os, matrix.sanitizer, hashFiles('ci/test/run-cfl-helper.sh', 'ci/test/cfl-common.sh')) }}
 
+      - name: Check depends directory (${{ matrix.sanitizer }})
+        id: depends_dir
+        shell: bash
+        run: |
+          if [ -d "${{ github.workspace }}/depends/x86_64-pc-linux-gnu" ]; then
+            echo "exists=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >>"$GITHUB_OUTPUT"
+          fi
+
       - name: Save depends cache (${{ matrix.sanitizer }})
-        if: ${{ steps.depends-cache.outputs.cache-hit != 'true' }}
+        if: ${{ github.event_name != 'push' && steps.depends-cache.outputs.cache-hit != 'true' && steps.depends_dir.outputs.exists == 'true' }}
         uses: actions/cache/save@v4
         with:
           path: |
