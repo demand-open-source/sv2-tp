@@ -76,18 +76,6 @@ log_cfl_toolchain_artifacts() {
     fi
   done
 
-  if [ -d /cxx_build/lib ]; then
-    echo "  instrumented_libcxx_dir=/cxx_build/lib" >&2
-    find /cxx_build/lib -maxdepth 1 -type f \( -name 'libc++*' -o -name 'libc++abi*' -o -name 'libunwind*' -o -name 'libclang_rt.*' \) \
-      -print 2>/dev/null | sed 's/^/    /' >&2 || true
-    if [ -n "$nm_bin" ] && [ -f /cxx_build/lib/libc++.a ]; then
-      if "$nm_bin" --print-file-name /cxx_build/lib/libc++.a 2>/dev/null | grep -q '__msan'; then
-        echo "  instrumented_libcxx_lib_msanimp=present" >&2
-      else
-        echo "  instrumented_libcxx_lib_msanimp=absent" >&2
-      fi
-    fi
-  fi
 }
 
 if [ -z "${PACKAGES:-}" ]; then
