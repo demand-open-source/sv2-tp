@@ -20,31 +20,7 @@ if [ -n "${GITHUB_WORKSPACE:-}" ] && [ -n "${CCACHE_DIR:-}" ]; then
   fi
 fi
 
-# Reuse a repository-local cache by default so helper runs can share state with
-# the workflow containers. Callers may override BASE_ROOT_DIR explicitly.
-BASE_ROOT_DIR="${BASE_ROOT_DIR:-${PWD}/.cfl-base}"
-mkdir -p "$BASE_ROOT_DIR"
-export BASE_ROOT_DIR
-export CI_RETRY_EXE="${CI_RETRY_EXE:-bash ./ci/retry/retry --}"
-export APT_LLVM_V="${APT_LLVM_V:-21}"
 SANITIZER_CHOICE="${SANITIZER:-address}"
-SKIP_CFL_SETUP_FLAG="${SKIP_CFL_SETUP:-false}"
-
-# shellcheck source=.clusterfuzzlite/cfl-common.sh
-source ./.clusterfuzzlite/cfl-common.sh
-
-if [ -z "${PACKAGES:-}" ]; then
-  packages_value="$(cfl_packages_for_sanitizer "$SANITIZER_CHOICE")"
-  export PACKAGES="$packages_value"
-else
-  export PACKAGES
-fi
-
-if [ "$SKIP_CFL_SETUP_FLAG" = "true" ] && [ -f "${BASE_ROOT_DIR}/ci.base-install-done" ]; then
-  echo "Skipping base install (already performed upstream)."
-else
-  ./ci/test/01_base_install.sh
-fi
 
 # Surface ClusterFuzzLite-provided toolchain flags for visibility and auditing.
 echo "[cfl] toolchain env:" >&2
