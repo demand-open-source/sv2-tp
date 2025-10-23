@@ -33,44 +33,6 @@ SKIP_CFL_SETUP_FLAG="${SKIP_CFL_SETUP:-false}"
 # shellcheck source=.clusterfuzzlite/cfl-common.sh
 source ./.clusterfuzzlite/cfl-common.sh
 
-log_cfl_toolchain_artifacts() {
-  local cxx_bin="${CXX:-clang++}"
-
-  echo "[cfl] toolchain probe:" >&2
-  echo "  compiler=${cxx_bin}" >&2
-
-  if ! command -v "$cxx_bin" >/dev/null 2>&1; then
-    echo "  status=missing-from-path" >&2
-    return
-  fi
-
-  echo "  compiler_version:" >&2
-  "$cxx_bin" --version 2>&1 | sed 's/^/    /' >&2 || true
-
-  local resource_dir
-  resource_dir="$("$cxx_bin" -print-resource-dir 2>/dev/null || true)"
-  if [ -n "$resource_dir" ]; then
-    echo "  resource_dir=${resource_dir}" >&2
-  fi
-
-  local nm_bin
-  nm_bin="$(command -v llvm-nm 2>/dev/null || command -v nm 2>/dev/null || true)"
-
-  local lib
-  for lib in libc++.so libc++.a libc++abi.so libunwind.so; do
-    local resolved
-    resolved="$("$cxx_bin" -print-file-name="$lib" 2>/dev/null || true)"
-    if [ -n "$resolved" ] && [ "$resolved" != "$lib" ] && [ -e "$resolved" ]; then
-      echo "  ${lib}_path=${resolved}" >&2
-      find "$resolved" -maxdepth 0 -printf '%M %4k %u %g %TY-%Tm-%Td %TT %p\n' 2>/dev/null | sed 's/^/    /' >&2 || true
-      sha256sum -- "$resolved" 2>/dev/null | sed 's/^/    /' >&2 || true
-    else
-      echo "  ${lib}_path=${resolved:-<none>}" >&2
-    fi
-  done
-
-}
-
 if [ -z "${PACKAGES:-}" ]; then
   packages_value="$(cfl_packages_for_sanitizer "$SANITIZER_CHOICE")"
   export PACKAGES="$packages_value"
@@ -92,8 +54,6 @@ echo "  CFLAGS=${CFLAGS:-}"
 echo "  CXXFLAGS=${CXXFLAGS:-}"
 echo "  LIB_FUZZING_ENGINE=${LIB_FUZZING_ENGINE:-}"
 echo "  SANITIZER=${SANITIZER:-}"
-
-log_cfl_toolchain_artifacts
 
 export BUILD_TRIPLET="x86_64-pc-linux-gnu"
 export CFLAGS="${CFLAGS:-} -flto=full"
