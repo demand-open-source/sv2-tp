@@ -61,17 +61,6 @@ export CXXFLAGS="${CXXFLAGS:-} -flto=full"
 export LDFLAGS="-fuse-ld=lld -flto=full ${LDFLAGS:-}"
 export CPPFLAGS="${CPPFLAGS:-} -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG"
 
-HOST_DEPENDS_DIR=""
-if [ -n "${GITHUB_WORKSPACE:-}" ]; then
-  HOST_DEPENDS_DIR="${GITHUB_WORKSPACE}/depends/${BUILD_TRIPLET}"
-  if [ -d "$HOST_DEPENDS_DIR" ] && find "$HOST_DEPENDS_DIR" -mindepth 1 -print -quit >/dev/null 2>&1; then
-    echo "Restoring cached depends outputs from ${HOST_DEPENDS_DIR}" >&2
-    mkdir -p depends
-    rm -rf "depends/${BUILD_TRIPLET}"
-    cp -a "$HOST_DEPENDS_DIR" depends/
-  fi
-fi
-
 FUZZ_LIBS_VALUE="$LIB_FUZZING_ENGINE"
 DEFAULT_LIBCPP_DIR=""
 SYSTEM_LIBSTDCPP_DIR=""
@@ -190,14 +179,6 @@ if [ "$NEED_DEPENDS_BUILD" -eq 1 ]; then
       STRIP=llvm-strip \
       -j"$(nproc)"
   )
-fi
-
-if [ -n "$HOST_DEPENDS_DIR" ] && [ -d "depends/${BUILD_TRIPLET}" ]; then
-  host_depends_parent="$(dirname "$HOST_DEPENDS_DIR")"
-  mkdir -p "$host_depends_parent"
-  rm -rf "$HOST_DEPENDS_DIR"
-  echo "Exporting depends outputs to ${HOST_DEPENDS_DIR}" >&2
-  cp -a "depends/${BUILD_TRIPLET}" "$host_depends_parent/"
 fi
 
 EXTRA_CMAKE_ARGS=()
