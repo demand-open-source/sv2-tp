@@ -102,47 +102,27 @@ else
   fi
 fi
 
-DEPENDS_PREFIX_DIR="depends/${BUILD_TRIPLET}"
-DEPENDS_TOOLCHAIN_PATH="${DEPENDS_PREFIX_DIR}/toolchain.cmake"
-DEPENDS_STAMP_PRESENT=0
+(
+  cd depends
+  sed -i --regexp-extended '/.*rm -rf .*extract_dir.*/d' ./funcs.mk || true
 
-if [ -d "$DEPENDS_PREFIX_DIR" ] && [ -f "$DEPENDS_TOOLCHAIN_PATH" ]; then
-  if find "$DEPENDS_PREFIX_DIR" -maxdepth 1 -type f -name '.stamp_*' -print -quit >/dev/null 2>&1; then
-    DEPENDS_STAMP_PRESENT=1
-  fi
-fi
-
-NEED_DEPENDS_BUILD=1
-if [ "${FORCE_DEPENDS_BUILD:-0}" = "1" ]; then
-  NEED_DEPENDS_BUILD=1
-elif [ "$DEPENDS_STAMP_PRESENT" -eq 1 ]; then
-  echo "Using cached depends outputs at ${DEPENDS_PREFIX_DIR}; skipping depends make step."
-  NEED_DEPENDS_BUILD=0
-fi
-
-if [ "$NEED_DEPENDS_BUILD" -eq 1 ]; then
-  (
-    cd depends
-    sed -i --regexp-extended '/.*rm -rf .*extract_dir.*/d' ./funcs.mk || true
-
-    # Mirror the MSan depends invocation from ci/test/00_setup_env_native_fuzz_with_msan.sh
-    # so that dependencies pick up the sanitizer-friendly toolchain.
-    make \
-      HOST=$BUILD_TRIPLET \
-      DEBUG=1 \
-      NO_IPC=1 \
-      LOG=1 \
-      CC=clang \
-      CXX=clang++ \
-      CFLAGS="$CFLAGS" \
-      CXXFLAGS="$CXXFLAGS" \
-      AR=llvm-ar \
-      NM=llvm-nm \
-      RANLIB=llvm-ranlib \
-      STRIP=llvm-strip \
-      -j"$(nproc)"
-  )
-fi
+  # Mirror the MSan depends invocation from ci/test/00_setup_env_native_fuzz_with_msan.sh
+  # so that dependencies pick up the sanitizer-friendly toolchain.
+  make \
+    HOST=$BUILD_TRIPLET \
+    DEBUG=1 \
+    NO_IPC=1 \
+    LOG=1 \
+    CC=clang \
+    CXX=clang++ \
+    CFLAGS="$CFLAGS" \
+    CXXFLAGS="$CXXFLAGS" \
+    AR=llvm-ar \
+    NM=llvm-nm \
+    RANLIB=llvm-ranlib \
+    STRIP=llvm-strip \
+    -j"$(nproc)"
+)
 
 EXTRA_CMAKE_ARGS=()
 if [ "$SANITIZER_CHOICE" = "memory" ]; then
