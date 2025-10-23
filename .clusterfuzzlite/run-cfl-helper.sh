@@ -6,7 +6,7 @@ export LC_ALL=C
 set -o errexit -o nounset -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=ci/test/cfl-common.sh
+# shellcheck source=cfl-common.sh
 source "${SCRIPT_DIR}/cfl-common.sh"
 
 if [ "${1:-}" = "" ] || [ "${2:-}" = "" ]; then
@@ -20,7 +20,7 @@ sanitizer="$2"
 shift 2 || true
 
 # Resolve repository root for Docker volume mounting.
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 APT_VER="$(cfl_apt_llvm_version)"
 
 mkdir -p "${ROOT_DIR}/.cfl-base" "${ROOT_DIR}/.cfl-ccache"

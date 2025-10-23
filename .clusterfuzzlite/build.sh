@@ -30,8 +30,8 @@ export APT_LLVM_V="${APT_LLVM_V:-21}"
 SANITIZER_CHOICE="${SANITIZER:-address}"
 SKIP_CFL_SETUP_FLAG="${SKIP_CFL_SETUP:-false}"
 
-# shellcheck source=ci/test/cfl-common.sh
-source ./ci/test/cfl-common.sh
+# shellcheck source=.clusterfuzzlite/cfl-common.sh
+source ./.clusterfuzzlite/cfl-common.sh
 
 log_cfl_toolchain_artifacts() {
   local cxx_bin="${CXX:-clang++}"

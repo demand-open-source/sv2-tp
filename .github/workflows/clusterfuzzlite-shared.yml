@@ -53,7 +53,7 @@ jobs:
 
       - name: ClusterFuzzLite base install (${{ matrix.sanitizer }})
         if: ${{ inputs.run_base_install }}
-        run: ./ci/test/run-cfl-helper.sh base-install "${{ matrix.sanitizer }}"
+        run: ./.clusterfuzzlite/run-cfl-helper.sh base-install "${{ matrix.sanitizer }}"
         shell: bash
         env:
           CCACHE_MAXSIZE: 500M
@@ -77,7 +77,7 @@ jobs:
         id: detect-symbolizer
         run: |
           set -euo pipefail
-          path="$(./ci/test/run-cfl-helper.sh detect-symbolizer "${{ matrix.sanitizer }}")"
+          path="$(./.clusterfuzzlite/run-cfl-helper.sh detect-symbolizer "${{ matrix.sanitizer }}")"
           echo "path=$path" >> "$GITHUB_OUTPUT"
         shell: bash
         env:
