@@ -7,19 +7,6 @@ date
 
 cd "$SRC/sv2-tp"
 
-# Keep ccache outputs on the runner workspace so cache save can pick them up.
-if [ -n "${GITHUB_WORKSPACE:-}" ] && [ -n "${CCACHE_DIR:-}" ]; then
-  host_ccache_dir="${GITHUB_WORKSPACE}/.cfl-ccache"
-  mkdir -p "$host_ccache_dir"
-  if [ "$CCACHE_DIR" != "$host_ccache_dir" ]; then
-    mkdir -p "$(dirname "$CCACHE_DIR")"
-    if [ -e "$CCACHE_DIR" ] || [ -L "$CCACHE_DIR" ]; then
-      rm -rf "$CCACHE_DIR"
-    fi
-    ln -s "$host_ccache_dir" "$CCACHE_DIR"
-  fi
-fi
-
 SANITIZER_CHOICE="${SANITIZER:-address}"
 
 # Surface ClusterFuzzLite-provided toolchain flags for visibility and auditing.
