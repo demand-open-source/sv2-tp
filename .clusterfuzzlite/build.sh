@@ -26,6 +26,12 @@ export CPPFLAGS="${CPPFLAGS:-} -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_D
 
 FUZZ_LIBS_VALUE="$LIB_FUZZING_ENGINE"
 
+if [ "$SANITIZER_CHOICE" = "coverage" ]; then
+  export CFLAGS="${CFLAGS} -fprofile-instr-generate -fcoverage-mapping"
+  export CXXFLAGS="${CXXFLAGS} -fprofile-instr-generate -fcoverage-mapping"
+  export LDFLAGS="${LDFLAGS} -fprofile-instr-generate"
+fi
+
 (
   cd depends
   sed -i --regexp-extended '/.*rm -rf .*extract_dir.*/d' ./funcs.mk || true
@@ -99,6 +105,19 @@ with open("$OUT/${fuzz_target}", 'wb') as g:
     g.write(dat)
 PY
   chmod +x "$OUT/${fuzz_target}"
+
+  if [ "$SANITIZER_CHOICE" = "coverage" ]; then
+    nm_tool="${NM:-llvm-nm}"
+    if command -v "$nm_tool" >/dev/null 2>&1; then
+      if "$nm_tool" --defined-only "$OUT/${fuzz_target}" | grep -q "__llvm_profile_runtime"; then
+        echo "[cfl] ${fuzz_target} exports __llvm_profile_runtime"
+      else
+        echo "[cfl] WARNING: ${fuzz_target} missing __llvm_profile_runtime" >&2
+      fi
+    else
+      echo "[cfl] WARNING: unable to locate nm tool for coverage check" >&2
+    fi
+  fi
 
   corpus_dir="assets/fuzz_corpora/${fuzz_target}"
   if [ -d "$corpus_dir" ] && find "$corpus_dir" -type f -print -quit >/dev/null 2>&1; then

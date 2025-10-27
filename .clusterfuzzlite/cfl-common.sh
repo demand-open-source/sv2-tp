@@ -10,7 +10,7 @@ cfl_apt_llvm_version() {
 cfl_llvm_packages() {
   local ver
   ver="$(cfl_apt_llvm_version)"
-  printf 'clang-%s llvm-%s llvm-%s-dev libclang-%s-dev libclang-rt-%s-dev' "$ver" "$ver" "$ver" "$ver" "$ver"
+  printf 'clang-%s llvm-%s llvm-%s-dev lld-%s libclang-%s-dev libclang-rt-%s-dev' "$ver" "$ver" "$ver" "$ver" "$ver" "$ver"
 }
 
 cfl_libcxx_packages() {

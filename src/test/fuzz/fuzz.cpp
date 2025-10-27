@@ -52,6 +52,7 @@ static constexpr char FuzzTargetPlaceholder[] = "d6f1a2b39c4e5d7a8b9c0d1e2f30415
 static std::vector<const char*> g_args;
 
 static void SetArgs(int argc, char** argv) {
+    g_args.clear();
     for (int i = 1; i < argc; ++i) {
         // Only take into account arguments that start with `--`. The others are for the fuzz engine:
         // `fuzz -runs=1 fuzz_corpora/address_deserialize_v2 --checkaddrman=5`
@@ -235,6 +236,7 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv)
 #if defined(PROVIDE_FUZZ_MAIN_FUNCTION)
 int main(int argc, char** argv)
 {
+    SetArgs(argc, argv);
     initialize();
 #ifdef __AFL_LOOP
     // Enable AFL persistent mode. Requires compilation using afl-clang-fast++.
@@ -257,7 +259,11 @@ int main(int argc, char** argv)
     const auto start_time{Now<SteadySeconds>()};
     int tested = 0;
     for (int i = 1; i < argc; ++i) {
-        fs::path input_path(*(argv + i));
+        const char* arg = argv[i];
+        if (arg[0] == '-') {
+            continue; // Skip libFuzzer-style flags such as -merge=1 or -runs=0.
+        }
+        fs::path input_path{arg};
         if (fs::is_directory(input_path)) {
             std::vector<fs::path> files;
             for (fs::directory_iterator it(input_path); it != fs::directory_iterator(); ++it) {
