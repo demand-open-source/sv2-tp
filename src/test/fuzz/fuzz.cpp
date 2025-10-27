@@ -40,6 +40,11 @@ extern const std::function<void(const std::string&)> G_TEST_LOG_FUN{};
 
 const TranslateFn G_TRANSLATION_FUN{nullptr};
 
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((used))
+#endif
+static const char G_CFL_COVERAGE_MARKER[] = "LLVMFuzzerTestOneInput"; // Keep literal for ClusterFuzzLite harness probing.
+
 static constexpr char FuzzTargetPlaceholder[] = "d6f1a2b39c4e5d7a8b9c0d1e2f30415263748596a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff00fedcba9876543210a0b1c2d3";
 
 /**
@@ -103,6 +108,7 @@ static void initialize()
     // - Randomness obtained before this call in g_rng_temp_path_init
     SeedRandomStateForTest(SeedRand::ZEROS);
 
+    (void)G_CFL_COVERAGE_MARKER; // Explicitly reference marker so it remains in optimized builds.
     // Set time to the genesis block timestamp for deterministic initialization.
     SetMockTime(1231006505);
 
