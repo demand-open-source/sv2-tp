@@ -80,7 +80,7 @@ jobs:
 
       - name: Run fuzzers (${{ matrix.sanitizer }})
         if: ${{ inputs.run_fuzzers }}
-        uses: google/clusterfuzzlite/actions/run_fuzzers@v1
+        uses: Sjors/oss-fuzz/infra/cifuzz/external-actions/run_fuzzers@2025/10/coverage-debug
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           sanitizer: ${{ matrix.sanitizer }}
